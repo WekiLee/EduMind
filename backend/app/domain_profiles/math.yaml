@@ -1,0 +1,47 @@
+domain:
+  id: "math"
+  name: "数学"
+  aliases: ["数学", "mathematics", "math"]
+
+  graph_structure:
+    type: "strict_dag"
+    allow_skip: false
+    allow_parallel: false
+
+  content_format:
+    card_template: "math_card"
+    supports:
+      - "latex_formula"
+      - "plot_2d"
+    examples_required: true
+
+  pedagogy:
+    strategy: "concept_practice"
+    steps_per_node:
+      - "introduce_concept"
+      - "validate_understanding"
+      - "show_example"
+      - "practice_problem"
+      - "assess"
+    dialogue_style: "socratic"
+
+  assessment:
+    types:
+      - "multiple_choice"
+      - "fill_blank"
+      - "step_solution"
+    passing_mastery: 0.8
+    allow_retake: true
+    review_interval: "1d,7d,30d"
+
+  prompt_overrides:
+    teach_concept: |
+      你是一位数学教师。请用严谨但易懂的语言解释以下数学概念。
+      - 必须包含至少一个具体数值例子
+      - 使用 $$...$$ 渲染公式
+      - 讲完后出一道简单的练习题
+    generate_quiz: |
+      请根据以下知识点生成 3 道题目：
+      - 至少 1 道选择题
+      - 至少 1 道需要分步计算
+      - 如果适用，包含 LaTeX 公式

@@ -1,0 +1,37 @@
+domain:
+  id: "general"
+  name: "通用"
+  aliases: ["general", "通用"]
+
+  graph_structure:
+    type: "network"
+    allow_skip: true
+    allow_parallel: true
+
+  content_format:
+    card_template: "default_card"
+    supports: []
+    examples_required: false
+
+  pedagogy:
+    strategy: "conversation"
+    steps_per_node:
+      - "introduce_concept"
+      - "validate_understanding"
+      - "show_example"
+      - "practice"
+      - "assess"
+    dialogue_style: "socratic"
+
+  assessment:
+    types:
+      - "multiple_choice"
+    passing_mastery: 0.6
+    allow_retake: true
+
+  prompt_overrides:
+    teach_concept: |
+      你是一位耐心的老师。请用通俗易懂的语言讲解以下知识点。
+      讲解完后询问学生是否理解，是否有疑问。
+    generate_quiz: |
+      请根据以下知识点生成 3 道选择题。每题 4 个选项，标注正确答案。

@@ -1,0 +1,45 @@
+domain:
+  id: "programming"
+  name: "编程"
+  aliases: ["编程", "programming", "code"]
+
+  graph_structure:
+    type: "lattice"
+    allow_skip: true
+    allow_parallel: true
+
+  content_format:
+    card_template: "programming_card"
+    supports:
+      - "code_block"
+      - "code_editor"
+    examples_required: true
+
+  pedagogy:
+    strategy: "demo_practice"
+    steps_per_node:
+      - "demonstrate"
+      - "explain_concept"
+      - "hands_on"
+      - "debug_together"
+      - "assess"
+    dialogue_style: "coach"
+
+  assessment:
+    types:
+      - "multiple_choice"
+    passing_mastery: 0.7
+    allow_retake: true
+
+  prompt_overrides:
+    teach_concept: |
+      你是一位编程教练。请用以下方式讲解：
+      - 先展示一段可运行的代码示例
+      - 然后逐步解释每行代码的作用
+      - 鼓励学生在本地尝试修改代码
+      - 使用 ```python ... ``` 包裹代码块
+    generate_quiz: |
+      请根据以下编程知识点生成题目：
+      - 生成 3 道选择题
+      - 每道题 4 个选项
+      - 考查对概念的理解

@@ -1,0 +1,374 @@
+import { useEffect, useState, useRef } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { api } from '../services/api';
+import { connectChatWS, sendChatMessage, sendExtensionRequest, closeChatWS } from '../services/api';
+import { useLearningStore } from '../stores/useLearningStore';
+import { ChevronRight, MessageSquare, Brain, Send, Maximize2 } from 'lucide-react';
+
+interface QuizQuestion {
+  id: string;
+  type: string;
+  question: string;
+  options: string[];
+}
+
+interface QuizResult {
+  score: number;
+  total: number;
+  correct: number;
+  passed: boolean;
+  mastery_update?: number;
+  results: { question_id: string; correct: boolean; correct_answer: string }[];
+}
+
+export default function LearnPage() {
+  const { pathId } = useParams();
+  const navigate = useNavigate();
+  const {
+    currentPath, setCurrentPath,
+    currentNode, setCurrentNode,
+    chatMessages, addChatMessage, appendChatChunk, clearChat,
+    setChatLoading, isChatLoading,
+  } = useLearningStore();
+
+  const [message, setMessage] = useState('');
+  const [showGraph, setShowGraph] = useState(false);
+  const [quizQuestions, setQuizQuestions] = useState<QuizQuestion[]>([]);
+  const [quizAnswers, setQuizAnswers] = useState<Record<string, string>>({});
+  const [quizResult, setQuizResult] = useState<QuizResult | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const chatEndRef = useRef<HTMLDivElement>(null);
+
+  // 加载路径
+  useEffect(() => {
+    if (!pathId) return;
+    api.get(`/learning-paths/${pathId}`).then(({ data }) => setCurrentPath(data.data));
+    return () => { closeChatWS(); clearChat(); };
+  }, [pathId]);
+
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [chatMessages]);
+
+  const allNodes = currentPath?.syllabus?.flatMap((m) => m.nodes || []) || [];
+  const firstIncompleteNode = allNodes.find((n) => n.status !== 'completed');
+
+  // 加载节点
+  const loadNode = async (nodeId: string) => {
+    try {
+      const { data } = await api.get(`/nodes/${nodeId}`);
+      setCurrentNode(data.data);
+      clearChat();
+      setQuizQuestions([]);
+      setQuizAnswers({});
+      setQuizResult(null);
+
+      await api.post(`/nodes/${nodeId}/start`, {}, { params: { path_id: pathId } });
+
+      closeChatWS();
+      connectChatWS(
+        (chunk) => appendChatChunk(chunk),
+        () => setChatLoading(false),
+        (err) => console.error(err)
+      );
+
+      setChatLoading(true);
+      sendChatMessage(nodeId, '请开始讲解这个知识点', pathId);
+    } catch (err) {
+      console.error('加载节点失败', err);
+    }
+  };
+
+  useEffect(() => {
+    if (firstIncompleteNode && !currentNode) {
+      loadNode(firstIncompleteNode.id);
+    }
+  }, [firstIncompleteNode, currentNode]);
+
+  // 发送聊天消息
+  const handleSend = () => {
+    if (!message.trim() || !currentNode) return;
+    addChatMessage({ id: `user-${Date.now()}`, role: 'user', content: message });
+    setChatLoading(true);
+    sendChatMessage(currentNode.id, message, pathId);
+    setMessage('');
+  };
+
+  // 生成测验
+  const handleComplete = async () => {
+    if (!currentNode) return;
+    try {
+      const { data } = await api.post(`/nodes/${currentNode.id}/quiz`);
+      setQuizQuestions(data.data.questions);
+      setQuizAnswers({});
+      setQuizResult(null);
+    } catch (err) {
+      console.error('生成测验失败', err);
+    }
+  };
+
+  // 选择答案
+  const selectAnswer = (questionId: string, option: string) => {
+    setQuizAnswers((prev) => ({ ...prev, [questionId]: option }));
+  };
+
+  // 提交答案
+  const submitQuiz = async () => {
+    if (!currentNode || !pathId || submitting) return;
+    const answers = Object.entries(quizAnswers).map(([question_id, selected]) => ({
+      question_id,
+      selected,
+    }));
+    setSubmitting(true);
+    try {
+      const { data } = await api.post(`/quiz/${currentNode.id}/submit`, {
+        answers,
+        path_id: pathId,
+      });
+      setQuizResult(data.data);
+
+      // 通过 → 调用完成节点
+      if (data.data.passed) {
+        const mastery = data.data.mastery_update ?? data.data.score;
+        await api.post(`/nodes/${currentNode.id}/complete`, { mastery }, { params: { path_id: pathId } });
+      }
+    } catch (err) {
+      console.error('提交答案失败', err);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // 渲染内容：整个内容用等宽字体 + 保留空白显示
+  const renderContent = (text: string) => {
+    if (!text) return null;
+    return (
+      <div className="whitespace-pre-wrap break-all text-sm leading-relaxed font-mono">
+        {text}
+      </div>
+    );
+  };
+
+  // 继续下一节点
+  const goToNextNode = () => {
+    const currentIdx = allNodes.findIndex((n) => n.id === currentNode?.id);
+    const nextNode = allNodes[currentIdx + 1];
+    if (nextNode) loadNode(nextNode.id);
+  };
+
+  return (
+    <div className="flex h-full">
+      {/* 左侧：模块导航 */}
+      <aside className="w-56 border-r border-gray-200 bg-white p-4 overflow-auto">
+        <h3 className="text-sm font-medium text-gray-400 uppercase mb-3">目录</h3>
+        {currentPath?.syllabus?.map((module) => (
+          <div key={module.module_name} className="mb-3">
+            <p className="text-xs font-medium text-gray-500 mb-1">{module.module_name}</p>
+            <div className="space-y-1">
+              {(module.nodes || []).slice(0, 10).map((node) => (
+                <button
+                  key={node.id}
+                  onClick={() => loadNode(node.id)}
+                  className={`w-full text-left px-2 py-1.5 rounded text-xs truncate ${
+                    node.id === currentNode?.id
+                      ? 'bg-indigo-100 text-indigo-700'
+                      : node.status === 'completed'
+                      ? 'text-green-600'
+                      : 'text-gray-500 hover:bg-gray-50'
+                  }`}
+                >
+                  {node.status === 'completed' && '✅ '}
+                  {node.id === currentNode?.id && '▶ '}
+                  {node.title || node.id.substring(0, 8)}
+                </button>
+              ))}
+            </div>
+          </div>
+        ))}
+      </aside>
+
+      {/* 中间：主内容 */}
+      <div className="flex-1 flex flex-col overflow-hidden">
+        {/* 知识卡片 */}
+        {currentNode && quizQuestions.length === 0 && (
+          <div className="p-4 border-b border-gray-200">
+            <div className="bg-white rounded-xl border border-gray-100 p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-xs bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded-full">{currentNode.difficulty}</span>
+                <span className="text-xs bg-gray-50 text-gray-500 px-2 py-0.5 rounded-full">{currentNode.node_type}</span>
+              </div>
+              <h2 className="text-lg font-bold mb-1">{currentNode.title}</h2>
+              <p className="text-gray-500 text-sm mb-2">{currentNode.summary}</p>
+              <div className="text-sm text-gray-700 leading-relaxed">
+                {renderContent(currentNode.content)}
+              </div>
+              {currentNode.examples?.length > 0 && (
+                <div className="mt-3 pt-3 border-t border-gray-100">
+                  <p className="text-xs font-medium text-gray-500 mb-2">📎 示例</p>
+                  {currentNode.examples.map((ex: string, i: number) => (
+                    <pre key={i} className="bg-gray-900 text-green-400 p-3 rounded-lg overflow-x-auto my-1 text-xs leading-relaxed">{ex}</pre>
+                  ))}
+                </div>
+              )}
+              {currentNode.code_snippets?.length > 0 && (
+                <div className="mt-3 pt-3 border-t border-gray-100">
+                  <p className="text-xs font-medium text-gray-500 mb-2">💻 代码</p>
+                  {currentNode.code_snippets.map((code: string, i: number) => (
+                    <pre key={i} className="bg-gray-900 text-green-400 p-3 rounded-lg overflow-x-auto my-1 text-xs leading-relaxed">{code}</pre>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className="flex items-center gap-2 mt-3">
+              <button onClick={handleComplete} className="bg-green-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-green-700">
+                ✅ 完成并测验
+              </button>
+              <button onClick={goToNextNode} className="flex items-center gap-1 text-gray-500 px-3 py-2 rounded-lg text-sm hover:bg-gray-100">
+                下一节点 <ChevronRight size={16} />
+              </button>
+              <button onClick={() => sendExtensionRequest(currentNode.id)} className="flex items-center gap-1 text-gray-500 px-3 py-2 rounded-lg text-sm hover:bg-gray-100">
+                <Brain size={16} /> 延伸
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Quiz 面板 */}
+        {quizQuestions.length > 0 && (
+          <div className="p-4 border-b border-gray-200 bg-white">
+            <h3 className="font-medium mb-3">📝 知识测验</h3>
+            <div className="space-y-4">
+              {quizQuestions.map((q, qi) => (
+                <div key={q.id} className="border border-gray-200 rounded-lg p-3">
+                  <p className="text-sm font-medium mb-2">{qi + 1}. {q.question}</p>
+                  <div className="space-y-1">
+                    {(q.options || []).map((opt) => {
+                      const isSelected = quizAnswers[q.id] === opt;
+                      const isCorrect = quizResult?.results.find((r) => r.question_id === q.id);
+                      const showResult = quizResult && isCorrect;
+                      const bgColor = showResult
+                        ? isCorrect.correct && isSelected
+                          ? 'bg-green-50 border-green-400'
+                          : !isCorrect.correct && isSelected
+                          ? 'bg-red-50 border-red-400'
+                          : 'bg-gray-50'
+                        : isSelected
+                        ? 'bg-indigo-50 border-indigo-400'
+                        : 'bg-gray-50';
+
+                      return (
+                        <button
+                          key={opt}
+                          onClick={() => !quizResult && selectAnswer(q.id, opt)}
+                          disabled={!!quizResult}
+                          className={`w-full text-left px-3 py-2 rounded-lg border text-sm ${bgColor} hover:bg-gray-100 transition-colors`}
+                        >
+                          {opt}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* 提交 / 结果 */}
+            <div className="mt-4">
+              {!quizResult ? (
+                <button
+                  onClick={submitQuiz}
+                  disabled={Object.keys(quizAnswers).length < quizQuestions.length || submitting}
+                  className="w-full bg-indigo-600 text-white py-2 rounded-lg text-sm hover:bg-indigo-700 disabled:opacity-50"
+                >
+                  {submitting ? '提交中...' : '提交答案'}
+                </button>
+              ) : (
+                <div className="text-center">
+                  <p className={`text-lg font-bold ${quizResult.passed ? 'text-green-600' : 'text-red-600'}`}>
+                    {quizResult.correct}/{quizResult.total} 正确
+                    {quizResult.passed ? ' ✅ 通过！' : ' ❌ 未通过'}
+                  </p>
+                  <div className="flex gap-2 justify-center mt-3">
+                    {quizResult.passed ? (
+                      <button onClick={goToNextNode} className="bg-green-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-green-700">
+                        继续下一节点 →
+                      </button>
+                    ) : (
+                      <button onClick={handleComplete} className="bg-yellow-500 text-white px-4 py-2 rounded-lg text-sm hover:bg-yellow-600">
+                        🔄 重新测验
+                      </button>
+                    )}
+                    <button onClick={() => { setQuizQuestions([]); setQuizResult(null); }} className="text-gray-500 px-4 py-2 rounded-lg text-sm hover:bg-gray-100">
+                      返回学习
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* 对话 */}
+        <div className="flex-1 flex flex-col p-4 overflow-hidden">
+          <div className="flex-1 overflow-auto space-y-3 mb-3">
+            {chatMessages.length === 0 && (
+              <div className="text-center py-10 text-gray-400">
+                <MessageSquare size={32} className="mx-auto mb-2" />
+                <p className="text-sm">AI 教师正在准备教学内容...</p>
+              </div>
+            )}
+            {chatMessages.map((msg, i) => (
+              <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                <div className={`max-w-[80%] rounded-xl px-4 py-2 text-sm ${
+                  msg.role === 'user'
+                    ? 'bg-indigo-600 text-white'
+                    : msg.role === 'system'
+                    ? 'bg-yellow-50 text-yellow-800 border border-yellow-200'
+                    : 'bg-gray-100 text-gray-800'
+                }`}>
+                  <div className="whitespace-pre-wrap">{msg.content}</div>
+                </div>
+              </div>
+            ))}
+            {isChatLoading && (
+              <div className="flex justify-start">
+                <div className="bg-gray-100 rounded-xl px-4 py-2 text-sm text-gray-400">
+                  <span className="animate-pulse">思考中...</span>
+                </div>
+              </div>
+            )}
+            <div ref={chatEndRef} />
+          </div>
+          <div className="flex gap-2 border-t border-gray-200 pt-3">
+            <input
+              type="text"
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleSend()}
+              placeholder="输入你的问题..."
+              className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+            />
+            <button
+              onClick={handleSend}
+              disabled={!message.trim() || isChatLoading}
+              className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 disabled:opacity-50"
+            >
+              <Send size={16} />
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* 图谱面板 */}
+      {showGraph && (
+        <div className="w-72 border-l border-gray-200 bg-white p-3">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-sm font-medium">知识图谱</h3>
+            <button onClick={() => setShowGraph(false)} className="text-gray-400 hover:text-gray-600 text-sm">✕</button>
+          </div>
+          <div id="graph-container" style={{ width: '100%', height: 'calc(100vh - 200px)' }} />
+        </div>
+      )}
+    </div>
+  );
+}
