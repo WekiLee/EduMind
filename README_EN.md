@@ -1,5 +1,7 @@
 # EduMind — AI Tutor System
 
+> **中文版**：[README.md](README.md)
+>
 > An open-source, AI-driven personal tutor — like a private teacher that helps learners build a complete knowledge graph from scratch, integrating teaching, practice, assessment, and exploration.
 
 ---
@@ -11,46 +13,21 @@
 | **📚 Mixed Content** | User uploads (PDF/MD/links) + AI auto-search with cross-verification |
 | **🧠 Domain-Aware** | Different subjects (math/programming/language/history) have tailored teaching strategies |
 | **👤 Learner-Aware** | Customizable abstraction level, analogy density, pace, and feedback style |
-| **🧩 Knowledge Graph** | Visual dependency/relationship graph between knowledge nodes, colored by mastery |
+| **🧩 Knowledge Graph** | Visual dependency/relationship graph between nodes, colored by mastery |
 | **📋 Smart Syllabus** | Auto topological sort, generating progressive learning paths |
 | **💬 Conversational Teaching** | Text + voice interaction, with real-time Q&A and extensions |
 | **📊 Assessment Loop** | Per-node quizzes + mastery quantification + spaced repetition review |
 | **🔌 Model Agnostic** | Supports DeepSeek / Ollama / OpenAI / any compatible API |
 | **👑 Dual Roles** | Admin manages users & system config; regular users learn |
-| **📦 Cross-Platform** | Web / Tauri Desktop / Docker deployment |
-
----
-
-## System Architecture
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                    Presentation Layer (React 18 + TS)            │
-│  Knowledge Card    Chat UI    Voice UI    Knowledge Graph Viz   │
-└──────────────────────────────┬──────────────────────────────────┘
-                               │
-┌──────────────────────────────┼──────────────────────────────────┐
-│                    Application Layer (Python FastAPI)           │
-│  Content Pipeline   Syllabus Generator   Teaching Engine        │
-│  Assessment Engine   Graph Manager   Domain/ Learner Profiles   │
-└──────────────────────────────┼──────────────────────────────────┘
-                               │
-┌──────────────┬───────────────┼──────────────┬───────────────────┐
-│  PostgreSQL  │    Neo4j      │   Redis      │  pgvector          │
-│  (users/prog)│  (knowledge)  │  (sessions)  │  (semantic search)│
-└──────────────┴───────────────┴──────────────┴───────────────────┘
-                               │
-┌──────────────────────────────┼──────────────────────────────────┐
-│                       AI Layer                                  │
-│  DeepSeek / Ollama / Whisper / Kokoro / MCP Client              │
-└────────────────────────────────────────────────────────────────┘
-```
+| **📦 Cross-Platform** | Web / Tauri Desktop / Docker |
 
 ---
 
 ## Quick Start
 
-### Prerequisites
+### Option 1: Native Install (Recommended)
+
+#### Prerequisites
 
 - Python 3.11+
 - Node.js 18+
@@ -58,7 +35,7 @@
 - Neo4j 5+
 - Redis 7+
 
-### 1. Install Databases
+#### 1. Install Databases
 
 ```bash
 # PostgreSQL
@@ -80,18 +57,18 @@ sudo neo4j-admin dbms set-initial-password edumind_dev
 sudo systemctl start neo4j
 ```
 
-### 2. Configure & Start Backend
+#### 2. Start Backend
 
 ```bash
 cd backend
 cp .env.example .env
-# Edit .env, add database connection info
+# Edit .env, fill in database URL and DeepSeek API Key
 conda activate edumind  # or python3 -m venv venv && source venv/bin/activate
 pip install -r requirements.txt
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-### 3. Start Frontend
+#### 3. Start Frontend
 
 ```bash
 cd frontend
@@ -99,9 +76,30 @@ npm install
 npm run dev -- --host 0.0.0.0
 ```
 
-### 4. Access the System
+#### 4. Access
 
 Open `http://localhost:5173` in your browser.
+
+---
+
+### Option 2: Docker Deployment
+
+> Suitable for users who don't want to install databases locally.
+
+#### Development Mode
+
+```bash
+docker compose --profile dev up -d
+docker compose logs -f backend
+```
+
+#### Production Mode
+
+```bash
+docker compose --profile prod build
+export JWT_SECRET=$(openssl rand -hex 32)
+docker compose --profile prod up -d
+```
 
 ---
 
@@ -111,23 +109,16 @@ Open `http://localhost:5173` in your browser.
 |-------|----------|-------|
 | admin@edumind.cn | admin123 | Password must be changed on first login |
 
-Admins can create regular users at `/admin/users` and configure LLM at `/admin/config`.
-
 ---
 
 ## LLM Configuration
 
-### Configuration Priority (high to low)
-
-1. **Admin Web UI** — Set via `/admin/config` page (recommended)
-2. **.env file** — Fallback for initial startup
-
-### Supported Providers
+Priority: **Admin Web UI** (`/admin/config`) > `.env` file.
 
 | Provider | Configuration | Notes |
 |----------|--------------|-------|
-| DeepSeek API | API Key + `https://api.deepseek.com/v1` | ✅ Default, accessible from China |
-| Ollama (Local) | Select Ollama + local model name | Offline, requires Ollama installed |
+| DeepSeek API | API Key + `https://api.deepseek.com/v1` | ✅ Default |
+| Ollama (Local) | Select Ollama + local model name | Offline |
 | OpenAI Compatible | API Key + custom endpoint | Qwen, Zhipu, etc. |
 
 ---
@@ -136,46 +127,8 @@ Admins can create regular users at `/admin/users` and configure LLM at `/admin/c
 
 | Role | Sidebar | Permissions |
 |------|---------|-------------|
-| **Admin** | User Management + System Config + Settings | Manage users, configure LLM, change password |
-| **Regular User** | My Learning + Settings | Create learning paths, AI teaching chat, quizzes |
-
-> Admin accounts are for management only and cannot create learning paths.
-
----
-
-## Project Structure
-
-```
-edumind/
-├── backend/                    # Python FastAPI backend
-│   ├── app/
-│   │   ├── api/                # REST API routes
-│   │   ├── core/               # Config/Database/Security
-│   │   ├── models/             # SQLAlchemy data models
-│   │   ├── services/           # Business logic layer
-│   │   ├── llm/                # LLM adapter
-│   │   ├── ws/                 # WebSocket chat handler
-│   │   ├── domain_profiles/    # Domain config files
-│   │   ├── scripts/            # Initialization scripts
-│   │   └── main.py             # Entry point
-│   ├── tests/                  # Tests
-│   └── requirements.txt
-├── frontend/                   # React 18 + TypeScript
-│   ├── src/
-│   │   ├── pages/              # Page components
-│   │   ├── components/         # Shared components
-│   │   ├── stores/             # Zustand state management
-│   │   ├── services/           # API client
-│   │   └── App.tsx             # Router config
-│   ├── package.json
-│   └── vite.config.ts
-├── docs/                       # Documentation
-│   ├── DESIGN.md               # Full design document (Chinese)
-│   ├── ADVANTAGES.md           # Competitive analysis
-│   ├── DEPLOYMENT_RECORD.md    # Deployment guide (Chinese)
-│   └── mvp/                    # MVP detailed design
-└── scripts/                    # Deployment scripts
-```
+| **Admin** | User Mgmt + System Config + Settings | Manage users, configure LLM, change password |
+| **User** | My Learning + Settings | Learning paths, AI teaching, quizzes |
 
 ---
 
@@ -188,13 +141,13 @@ edumind/
 | AI | LiteLLM (DeepSeek / Ollama / OpenAI) |
 | Knowledge Graph | Neo4j + vis-network |
 | Voice (optional) | Whisper ASR + Kokoro TTS |
-| Deployment | Native install / Docker Compose |
+| Deployment | Native / Docker Compose |
 
 ---
 
 ## License
 
-AGPL v3
+AGPL v3 - see [LICENSE](LICENSE)
 
 ---
 
@@ -202,10 +155,11 @@ AGPL v3
 
 | Document | Description |
 |----------|-------------|
-| [Full Design (CN)](docs/DESIGN.md) | System architecture, core flows, tech stack |
-| [Deployment Guide (CN)](docs/DEPLOYMENT_RECORD.md) | Step-by-step deployment guide |
-| [Competitive Analysis (CN)](docs/ADVANTAGES.md) | Comparison with existing open-source projects |
-| [API Contract](docs/mvp/API.md) | REST + WebSocket interface definitions |
+| [Design Doc (CN)](docs/DESIGN.md) | Architecture, flows, tech stack (17 chapters) |
+| [Deployment Guide (CN)](docs/DEPLOYMENT_RECORD.md) | Step-by-step deployment |
+| [Competitive Analysis (CN)](docs/ADVANTAGES.md) | Comparison with 6 existing projects |
+| [API Contract](docs/mvp/API.md) | REST + WebSocket definitions |
 | [Database Schema](docs/mvp/DATABASE.md) | PostgreSQL + Neo4j schema |
-| [Testing Framework](docs/mvp/TESTING.md) | Test strategies and test cases |
+| [Testing](docs/mvp/TESTING.md) | Test strategies and cases |
 | [Frontend Architecture](docs/mvp/FRONTEND.md) | Component tree + state management |
+| [中文版](README.md) | Chinese version |

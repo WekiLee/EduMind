@@ -1,6 +1,19 @@
 # EduMind — 智能导师系统
 
+> **English**：[README_EN.md](README_EN.md)
+>
 > 开源的 AI 驱动个人导师——像一位私人家教，从零到一帮学习者建立完整知识图谱，教、练、评、拓一体化。
+
+---
+
+## 项目亮点
+
+> 📊 [与现有开源项目的优势对比 →](docs/ADVANTAGES.md)
+
+- **知识图谱驱动**：每个知识点在图中有唯一位点，教学是对图的拓扑序遍历
+- **领域感知 × 学习者感知**：数学有公式推导，历史有时间线；儿童多用比喻，成人直奔主题
+- **AI 自由配置**：管理员 Web UI 直接切换 DeepSeek / Ollama / OpenAI，无需改代码
+- **真正的开源治理**：AGPL v3 许可证 + CI/CD + 贡献指南 + Issue/PR 模板
 
 ---
 
@@ -50,7 +63,9 @@
 
 ## 快速开始
 
-### 环境要求
+### 方式一：原生安装（推荐）
+
+#### 环境要求
 
 - Python 3.11+
 - Node.js 18+
@@ -58,7 +73,7 @@
 - Neo4j 5+
 - Redis 7+
 
-### 1. 安装数据库
+#### 1. 安装数据库
 
 ```bash
 # PostgreSQL
@@ -80,18 +95,18 @@ sudo neo4j-admin dbms set-initial-password edumind_dev
 sudo systemctl start neo4j
 ```
 
-### 2. 配置并启动后端
+#### 2. 配置并启动后端
 
 ```bash
 cd backend
 cp .env.example .env
-# 编辑 .env，填入数据库连接信息
+# 编辑 .env，填入数据库连接信息和 DeepSeek API Key
 conda activate edumind  # 或 python3 -m venv venv && source venv/bin/activate
 pip install -r requirements.txt
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-### 3. 启动前端
+#### 3. 启动前端
 
 ```bash
 cd frontend
@@ -99,9 +114,42 @@ npm install
 npm run dev -- --host 0.0.0.0
 ```
 
-### 4. 访问系统
+#### 4. 访问系统
 
 浏览器打开 `http://localhost:5173`
+
+---
+
+### 方式二：Docker 部署
+
+> 适用于不想在本机安装数据库的用户。国内用户可能需要配置 Docker 镜像加速。
+
+#### 开发模式
+
+```bash
+# 启动所有服务（PostgreSQL + Neo4j + Redis + 后端 + 前端）
+docker compose --profile dev up -d
+
+# 查看日志
+docker compose logs -f backend
+
+# 停止
+docker compose down
+```
+
+#### 生产模式
+
+```bash
+# 构建镜像并启动（多阶段构建，无源码挂载）
+docker compose --profile prod build
+docker compose --profile prod up -d
+
+# 生产环境需通过环境变量传入 JWT_SECRET
+export JWT_SECRET=$(openssl rand -hex 32)
+docker compose --profile prod up -d
+```
+
+> 详细部署说明见 [部署记录](docs/DEPLOYMENT_RECORD.md)。
 
 ---
 
@@ -194,7 +242,7 @@ edumind/
 
 ## 开源协议
 
-AGPL v3
+AGPL v3 - 详见 [LICENSE](LICENSE)
 
 ---
 
@@ -202,10 +250,11 @@ AGPL v3
 
 | 文档 | 说明 |
 |------|------|
-| [完整方案设计书](docs/DESIGN.md) | 系统架构、核心流程、技术选型 |
+| [完整方案设计书](docs/DESIGN.md) | 系统架构、核心流程、技术选型（17章） |
 | [部署记录](docs/DEPLOYMENT_RECORD.md) | 从零到可用的完整部署流程 |
-| [优势分析](docs/ADVANTAGES.md) | 与现有开源项目的对比 |
+| [优势分析](docs/ADVANTAGES.md) | 与 6 个现有开源项目的详细对比 |
 | [API 契约](docs/mvp/API.md) | REST + WebSocket 接口定义 |
 | [数据库设计](docs/mvp/DATABASE.md) | PostgreSQL + Neo4j Schema |
 | [测试框架](docs/mvp/TESTING.md) | 测试策略和用例 |
 | [前端架构](docs/mvp/FRONTEND.md) | 组件树 + 状态管理 |
+| [英文版](README_EN.md) | English version |
