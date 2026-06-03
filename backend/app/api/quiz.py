@@ -1,12 +1,12 @@
 """测验 API —— 生成时缓存答题卡，提交时取缓存判卷"""
 
-import yaml
 import time
+
+import yaml
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
 from pydantic import BaseModel
-from typing import Optional
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.security import get_current_user_id
@@ -48,11 +48,12 @@ def load_domain_profile(domain_id: str) -> dict:
         return entry[0]
 
     import os
+
     path = os.path.join("app", "domain_profiles", f"{domain_id}.yaml")
     if not os.path.exists(path):
         path = os.path.join("app", "domain_profiles", "general.yaml")
 
-    with open(path, "r", encoding="utf-8") as f:
+    with open(path, encoding="utf-8") as f:
         profile = yaml.safe_load(f)
     _domain_profile_cache[domain_id] = (profile, time.time())
     return profile
@@ -81,17 +82,16 @@ async def generate_quiz(
     _set_cached_answers(node_id, questions)
 
     # 返回给前端时不包含答案
-    client_questions = [
-        {k: v for k, v in q.items() if k != "answer"}
-        for q in questions
-    ]
+    client_questions = [{k: v for k, v in q.items() if k != "answer"} for q in questions]
 
     # 更新进度（用 limit(1) 避免跨路径时 MultipleResultsFound）
     result = await db.execute(
-        select(NodeProgress).where(
+        select(NodeProgress)
+        .where(
             NodeProgress.user_id == user_id,
             NodeProgress.node_id == node_id,
-        ).limit(1)
+        )
+        .limit(1)
     )
     np = result.scalar_one_or_none()
     if np:
@@ -108,7 +108,7 @@ async def generate_quiz(
 
 class SubmitQuizRequest(BaseModel):
     answers: list[dict]
-    path_id: Optional[str] = None
+    path_id: str | None = None
 
 
 @router.post("/quiz/{quiz_id}/submit")
@@ -141,7 +141,7 @@ async def submit_quiz(
 
     # 保存测验记录
     if req.path_id:
-        attempt = await assessment.save_attempt(
+        await assessment.save_attempt(
             user_id=user_id,
             path_id=req.path_id,
             node_id=quiz_id,

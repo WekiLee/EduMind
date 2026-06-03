@@ -71,8 +71,16 @@ class TestGradeQuiz:
     def test_full_text_answer(self):
         """前端提交完整选项文本（A. xxx）vs 后端存字母（A）"""
         questions = [
-            {"id": "q1", "answer": "B", "options": ["A. Dennis Ritchie", "B. Bjarne Stroustrup", "C. Ken Thompson"]},
-            {"id": "q2", "answer": "C", "options": ["A. 自动管理", "B. 跨平台", "C. 效率灵活", "D. 仅面向对象"]},
+            {
+                "id": "q1",
+                "answer": "B",
+                "options": ["A. Dennis Ritchie", "B. Bjarne Stroustrup", "C. Ken Thompson"],
+            },
+            {
+                "id": "q2",
+                "answer": "C",
+                "options": ["A. 自动管理", "B. 跨平台", "C. 效率灵活", "D. 仅面向对象"],
+            },
         ]
         answers = [
             {"question_id": "q1", "selected": "B. Bjarne Stroustrup"},

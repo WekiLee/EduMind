@@ -1,9 +1,9 @@
 """评估引擎 —— 出题、判卷、掌握度计算"""
 
 import math
-from typing import Optional
+
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
+
 from app.llm.adapter import LLMAdapter
 from app.models.quiz import QuizAttempt
 
@@ -56,11 +56,13 @@ class AssessmentService:
 
             if is_correct:
                 correct_count += 1
-            results.append({
-                "question_id": qid,
-                "correct": is_correct,
-                "correct_answer": correct,
-            })
+            results.append(
+                {
+                    "question_id": qid,
+                    "correct": is_correct,
+                    "correct_answer": correct,
+                }
+            )
 
         total = len(questions)
         score = correct_count / total if total > 0 else 0
@@ -103,7 +105,7 @@ class AssessmentService:
         # 加权平均（最近权重越高）
         n = len(quiz_scores)
         weights = [i + 1 for i in range(n)]
-        weighted_avg = sum(s * w for s, w in zip(quiz_scores, weights)) / sum(weights)
+        weighted_avg = sum(s * w for s, w in zip(quiz_scores, weights, strict=False)) / sum(weights)
 
         # 与旧掌握度融合（新成绩占 60%，旧掌握度占 40%）
         new_mastery = 0.6 * weighted_avg + 0.4 * current_mastery
@@ -125,7 +127,12 @@ class AssessmentService:
         """
         total = len(node_progress_list)
         if total == 0:
-            return {"total_nodes": 0, "completed_nodes": 0, "progress_pct": 0, "overall_mastery": 0.0}
+            return {
+                "total_nodes": 0,
+                "completed_nodes": 0,
+                "progress_pct": 0,
+                "overall_mastery": 0.0,
+            }
 
         completed = sum(1 for np in node_progress_list if np.get("status") == "completed")
         total_mastery = sum(np.get("mastery", 0.0) or 0.0 for np in node_progress_list)

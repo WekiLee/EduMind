@@ -21,11 +21,12 @@ classifiers = [
 
 [tool.ruff]
 target-version = "py311"
-line-length = 100
+line-length = 120
 extend-exclude = ["alembic"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "N", "UP", "B"]
+ignore = ["B008"]
 
 [tool.ruff.format]
 quote-style = "double"

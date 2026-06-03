@@ -1,7 +1,8 @@
 """Seed 测试数据 —— Python 入门学习路径"""
 
 import asyncio
-from app.core.database import async_session_factory, get_neo4j_driver
+
+from app.core.database import async_session_factory
 from app.services.content_pipeline import ContentPipelineService
 
 
@@ -9,9 +10,10 @@ async def seed():
     """插入测试数据"""
     async with async_session_factory() as db:
         # 先创建测试用户（如果不存在）
-        from app.models.user import User
-        from app.core.security import hash_password
         from sqlalchemy import select
+
+        from app.core.security import hash_password
+        from app.models.user import User
 
         result = await db.execute(select(User).where(User.email == "test@example.com"))
         user = result.scalar_one_or_none()
@@ -41,6 +43,7 @@ async def seed():
 
         # 列出节点
         from app.services.knowledge_graph import KnowledgeGraphService
+
         kg = KnowledgeGraphService()
         nodes = await kg.get_path_nodes(path.id)
         print(f"     📝 节点数: {len(nodes)}")

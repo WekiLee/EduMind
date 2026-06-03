@@ -1,14 +1,15 @@
 """FastAPI 主应用"""
 
 from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.core.config import settings
-from app.core.database import close_neo4j, close_redis, engine, Base, async_session_factory
-from app.api import auth, users, learning_paths, nodes, progress, quiz, admin
-from app.llm.adapter import LLMAdapter
+from app.api import admin, auth, learning_paths, nodes, progress, quiz, users
 from app.api.progress import path_progress_router
+from app.core.config import settings
+from app.core.database import Base, async_session_factory, close_neo4j, close_redis, engine
+from app.llm.adapter import LLMAdapter
 from app.ws import chat
 
 
@@ -22,21 +23,23 @@ async def lifespan(app: FastAPI):
     # 启动时确保内置管理员账号存在
     try:
         from app.scripts.ensure_admin import ensure_admin
+
         await ensure_admin()
     except Exception as e:
         print(f"  ⚠️  内置管理员初始化跳过: {e}")
 
     # 确保系统配置存在（管理员已存在但配置表为空的情况）
     try:
-        from app.models.system_config import SystemConfig
         from sqlalchemy import select
+
+        from app.models.system_config import SystemConfig
+
         async with async_session_factory() as session:
             cfg = await session.execute(select(SystemConfig).limit(1))
             if not cfg.scalar_one_or_none():
                 from app.models.user import User
-                admin_user = await session.execute(
-                    select(User).where(User.role == "admin").limit(1)
-                )
+
+                admin_user = await session.execute(select(User).where(User.role == "admin").limit(1))
                 admin = admin_user.scalar_one_or_none()
                 if admin:
                     session.add(SystemConfig(updated_by=admin.id))
@@ -47,8 +50,10 @@ async def lifespan(app: FastAPI):
 
     # 启动时加载管理员保存的 LLM 配置
     try:
-        from app.models.system_config import SystemConfig
         from sqlalchemy import select
+
+        from app.models.system_config import SystemConfig
+
         async with async_session_factory() as session:
             result = await session.execute(select(SystemConfig).limit(1))
             config = result.scalar_one_or_none()

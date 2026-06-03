@@ -1,10 +1,9 @@
 """大纲生成器 —— 拓扑排序 + 模块分组"""
 
-from typing import List
-
 
 class CycleDetectedError(Exception):
     """检测到循环依赖"""
+
     pass
 
 
@@ -78,20 +77,24 @@ class SyllabusService:
                         break
 
             if module_nodes or cfg.get("name"):
-                syllabus.append({
-                    "module_name": cfg.get("name", "默认模块"),
-                    "order": cfg.get("order", len(syllabus) + 1),
-                    "node_ids": module_nodes,
-                })
+                syllabus.append(
+                    {
+                        "module_name": cfg.get("name", "默认模块"),
+                        "order": cfg.get("order", len(syllabus) + 1),
+                        "node_ids": module_nodes,
+                    }
+                )
 
         # 处理未分组的节点
         remaining = [nid for nid in node_ids if nid not in seen]
         if remaining:
-            syllabus.append({
-                "module_name": "其他",
-                "order": len(syllabus) + 1,
-                "node_ids": remaining,
-            })
+            syllabus.append(
+                {
+                    "module_name": "其他",
+                    "order": len(syllabus) + 1,
+                    "node_ids": remaining,
+                }
+            )
 
         return syllabus
 

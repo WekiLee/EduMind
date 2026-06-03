@@ -1,23 +1,23 @@
 """管理员 API —— 用户管理 / 系统配置 / 内容统计"""
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
 from pydantic import BaseModel
-from typing import Optional
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.security import get_current_user_id, hash_password
 from app.llm.adapter import LLMAdapter
-from app.models.user import User
 from app.models.path import LearningPath
-from app.models.system_config import SystemConfig
 from app.models.progress import NodeProgress
+from app.models.system_config import SystemConfig
+from app.models.user import User
 
 router = APIRouter(prefix="/admin", tags=["管理员"])
 
 
 # ── 权限校验 ──
+
 
 async def require_admin(user_id: str = Depends(get_current_user_id), db: AsyncSession = Depends(get_db)):
     """当前用户必须是管理员"""
@@ -32,20 +32,21 @@ async def require_admin(user_id: str = Depends(get_current_user_id), db: AsyncSe
 
 # ── 用户管理 ──
 
+
 class CreateUserRequest(BaseModel):
     name: str
     email: str
     password: str
     role: str = "user"
-    organization: Optional[str] = None
+    organization: str | None = None
 
 
 class UpdateUserRequest(BaseModel):
-    name: Optional[str] = None
-    role: Optional[str] = None
-    is_active: Optional[bool] = None
-    organization: Optional[str] = None
-    password: Optional[str] = None
+    name: str | None = None
+    role: str | None = None
+    is_active: bool | None = None
+    organization: str | None = None
+    password: str | None = None
 
 
 @router.post("/users", status_code=201)
@@ -90,9 +91,7 @@ async def list_users(
     count_result = await db.execute(select(func.count(User.id)))
     total = count_result.scalar()
 
-    result = await db.execute(
-        select(User).order_by(User.created_at.desc()).offset((page - 1) * size).limit(size)
-    )
+    result = await db.execute(select(User).order_by(User.created_at.desc()).offset((page - 1) * size).limit(size))
     users = result.scalars().all()
 
     # 统计每个用户的路径数和完成数
@@ -100,8 +99,9 @@ async def list_users(
     for u in users:
         ud = u.to_dict()
         np_result = await db.execute(
-            select(func.count(LearningPath.id), func.count().filter(LearningPath.status == "completed"))
-            .where(LearningPath.user_id == u.id)
+            select(func.count(LearningPath.id), func.count().filter(LearningPath.status == "completed")).where(
+                LearningPath.user_id == u.id
+            )
         )
         path_count, completed_count = np_result.one()
         ud["path_count"] = path_count
@@ -129,9 +129,7 @@ async def update_user(
     if req.role is not None or req.is_active is not None:
         # 如果是针对自己的操作，且这是最后一个管理员
         if user_id == admin.id or user.role == "admin":
-            count_result = await db.execute(
-                select(func.count(User.id)).where(User.role == "admin", User.is_active == True)
-            )
+            count_result = await db.execute(select(func.count(User.id)).where(User.role == "admin", User.is_active))
             last_admin_count = count_result.scalar()
             # 如果是最后一个活跃管理员
             if user.id == admin.id and last_admin_count <= 1:
@@ -173,20 +171,19 @@ async def delete_user(
 
     # 检查是否是最后一个管理员
     if user.role == "admin":
-        count_result = await db.execute(
-            select(func.count(User.id)).where(User.role == "admin", User.is_active == True)
-        )
+        count_result = await db.execute(select(func.count(User.id)).where(User.role == "admin", User.is_active))
         if count_result.scalar() <= 1:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="不能删除最后一个管理员")
 
     # 级联删除相关数据
     from app.models.path import LearningPath
-    from app.models.progress import NodeProgress
-    from app.models.quiz import QuizAttempt, ChatSession, ChatMessage
+    from app.models.quiz import ChatMessage, ChatSession, QuizAttempt
 
-    await db.execute(ChatMessage.__table__.delete().where(
-        ChatMessage.session_id.in_(select(ChatSession.id).where(ChatSession.user_id == user_id))
-    ))
+    await db.execute(
+        ChatMessage.__table__.delete().where(
+            ChatMessage.session_id.in_(select(ChatSession.id).where(ChatSession.user_id == user_id))
+        )
+    )
     await db.execute(ChatSession.__table__.delete().where(ChatSession.user_id == user_id))
     await db.execute(QuizAttempt.__table__.delete().where(QuizAttempt.user_id == user_id))
     await db.execute(NodeProgress.__table__.delete().where(NodeProgress.user_id == user_id))
@@ -197,12 +194,13 @@ async def delete_user(
 
 # ── 系统配置 ──
 
+
 class SystemConfigRequest(BaseModel):
-    llm_provider: Optional[str] = None
-    llm_model: Optional[str] = None
-    llm_api_key: Optional[str] = None
-    llm_api_base: Optional[str] = None
-    allow_self_register: Optional[bool] = None
+    llm_provider: str | None = None
+    llm_model: str | None = None
+    llm_api_key: str | None = None
+    llm_api_base: str | None = None
+    allow_self_register: bool | None = None
 
 
 @router.get("/config")
@@ -214,12 +212,14 @@ async def get_config(
     result = await db.execute(select(SystemConfig).limit(1))
     config = result.scalar_one_or_none()
     if not config:
-        return {"data": {
-            "llm_provider": "openai-compatible",
-            "llm_model": "deepseek-v4-flash",
-            "llm_api_base": "https://api.deepseek.com/v1",
-            "allow_self_register": True,
-        }}
+        return {
+            "data": {
+                "llm_provider": "openai-compatible",
+                "llm_model": "deepseek-v4-flash",
+                "llm_api_base": "https://api.deepseek.com/v1",
+                "allow_self_register": True,
+            }
+        }
     cd = config.to_dict()
     # API Key 部分遮盖后返回
     if config.llm_api_key:
@@ -269,24 +269,21 @@ async def update_config(
 
 # ── 内容统计 ──
 
+
 @router.get("/stats")
 async def get_stats(
     admin: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ):
     """系统统计概览（管理员）"""
-    from app.services.knowledge_graph import KnowledgeGraphService
 
     user_count = await db.execute(select(func.count(User.id)))
     path_count = await db.execute(select(func.count(LearningPath.id)))
-    completed_paths = await db.execute(
-        select(func.count(LearningPath.id)).where(LearningPath.status == "completed")
-    )
+    completed_paths = await db.execute(select(func.count(LearningPath.id)).where(LearningPath.status == "completed"))
 
     # 按领域统计路径数
     domain_result = await db.execute(
-        select(LearningPath.domain_id, func.count(LearningPath.id))
-        .group_by(LearningPath.domain_id)
+        select(LearningPath.domain_id, func.count(LearningPath.id)).group_by(LearningPath.domain_id)
     )
     domain_stats = [{"domain": d, "count": c} for d, c in domain_result.all()]
 

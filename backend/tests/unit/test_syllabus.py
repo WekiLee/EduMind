@@ -1,7 +1,7 @@
 """Syllabus 服务单元测试 —— 拓扑排序"""
 
 import pytest
-from app.services.syllabus import SyllabusService, CycleDetectedError
+from app.services.syllabus import CycleDetectedError, SyllabusService
 
 
 class TestTopologicalSort:
@@ -93,9 +93,7 @@ class TestSyllabusGrouping:
             {"name": "基础概念", "order": 1, "node_titles": ["变量", "数据类型"]},
             {"name": "流程控制", "order": 2, "node_titles": ["循环"]},
         ]
-        result = SyllabusService.group_into_modules(
-            ["id1", "id2", "id3"], nodes_map, module_configs
-        )
+        result = SyllabusService.group_into_modules(["id1", "id2", "id3"], nodes_map, module_configs)
         assert len(result) == 2
         assert result[0]["module_name"] == "基础概念"
         assert result[0]["node_ids"] == ["id1", "id2"]

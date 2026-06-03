@@ -2,6 +2,7 @@
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.core.database import get_db
 from app.core.security import get_current_user_id
 from app.services.knowledge_graph import KnowledgeGraphService
@@ -46,8 +47,10 @@ async def get_node_graph(
 
     # 如果传了 path_id，补充节点掌握度
     if path_id and graph.get("nodes"):
-        from app.models.progress import NodeProgress
         from sqlalchemy import select
+
+        from app.models.progress import NodeProgress
+
         result = await db.execute(
             select(NodeProgress).where(
                 NodeProgress.user_id == user_id,

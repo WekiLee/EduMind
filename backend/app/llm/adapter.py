@@ -1,9 +1,11 @@
 """LLM 适配器 —— 统一接口 + Token 感知上下文裁剪 + 响应缓存"""
 
-import json
 import hashlib
-from typing import AsyncGenerator, Optional
+import json
+from collections.abc import AsyncGenerator
+
 from litellm import acompletion
+
 from app.core.config import settings
 
 
@@ -32,8 +34,7 @@ class LLMAdapter:
         self._setup_provider()
 
     @classmethod
-    def update_runtime_config(cls, provider: str = None, model: str = None,
-                                api_key: str = None, api_base: str = None):
+    def update_runtime_config(cls, provider: str = None, model: str = None, api_key: str = None, api_base: str = None):
         """由管理员 API 调用，动态更新 LLM 配置"""
         if provider:
             cls._runtime_provider = provider
@@ -181,10 +182,7 @@ class LLMAdapter:
         return (
             "以下是当前教学对话的历史记录，请用 100 字以内概括已讨论的内容、"
             "学生的掌握情况以及仍有疑问的知识点：\n\n"
-            + "\n".join(
-                f"{'学生' if m['role'] == 'user' else '老师'}：{m['content'][:200]}"
-                for m in messages[-10:]
-            )
+            + "\n".join(f"{'学生' if m['role'] == 'user' else '老师'}：{m['content'][:200]}" for m in messages[-10:])
         )
 
     # ──────────────────────────────────────────
@@ -199,9 +197,7 @@ class LLMAdapter:
         chat_history: list[dict] = None,
     ) -> str:
         """教学讲解（带上下文裁剪）"""
-        prompt_template = domain_profile.get("prompt_overrides", {}).get(
-            "teach_concept", "请讲解以下知识点。"
-        )
+        prompt_template = domain_profile.get("prompt_overrides", {}).get("teach_concept", "请讲解以下知识点。")
         learner_style = self._learner_to_instruction(learner_profile)
 
         messages = [
@@ -212,10 +208,12 @@ class LLMAdapter:
             trimmed = self.trim_context(chat_history)
             messages.extend(trimmed)
 
-        messages.append({
-            "role": "user",
-            "content": f"知识点：{node.get('title')}\n\n{node.get('content', '')}",
-        })
+        messages.append(
+            {
+                "role": "user",
+                "content": f"知识点：{node.get('title')}\n\n{node.get('content', '')}",
+            }
+        )
 
         return await self.chat(messages, temperature=0.7)
 
@@ -249,22 +247,23 @@ class LLMAdapter:
 
     async def generate_quiz(self, node: dict, domain_profile: dict) -> dict:
         """生成测验题目（带缓存，相同节点不出两次题）"""
-        prompt_template = domain_profile.get("prompt_overrides", {}).get(
-            "generate_quiz", "请生成 3 道选择题。"
-        )
+        prompt_template = domain_profile.get("prompt_overrides", {}).get("generate_quiz", "请生成 3 道选择题。")
         prompt = f"""{prompt_template}
 
 知识点内容：
-{node.get('content', '')}
+{node.get("content", "")}
 
 返回 JSON 格式（不要 markdown 包裹）：
 {{
   "questions": [
-    {{"id": "q1", "type": "multiple_choice", "question": "...", "options": ["A. ...", "B. ...", "C. ...", "D. ..."], "answer": "A"}}
+    {{"id": "q1", "type": "multiple_choice", "question": "...",
+      "options": ["A. ...", "B. ...", "C. ...", "D. ..."], "answer": "A"}}
   ]
 }}"""
 
-        result = await self.chat([{"role": "user", "content": prompt}], temperature=0.7, max_tokens=4096, use_cache=False)
+        result = await self.chat(
+            [{"role": "user", "content": prompt}], temperature=0.7, max_tokens=4096, use_cache=False
+        )
         # 如果返回为空或明显截断，用本地规则兜底
         if not result or len(result.strip()) < 20 or result.strip().endswith('"options":'):
             # API 返回空 → 用本地规则生成一个简单问题兜底
@@ -278,9 +277,9 @@ class LLMAdapter:
                             "A. 以上描述全部正确",
                             "B. 以上描述部分正确",
                             "C. 以上描述不正确",
-                            "D. 无法判断"
+                            "D. 无法判断",
                         ],
-                        "answer": "A"
+                        "answer": "A",
                     }
                 ]
             }
@@ -303,7 +302,8 @@ class LLMAdapter:
 返回格式（严格 JSON，不要 markdown 包裹）：
 {{
   "nodes": [
-    {{"title": "...", "summary": "...", "content": "...# Markdown", "difficulty": "intro", "node_type": "concept", "examples": []}}
+    {{"title": "...", "summary": "...", "content": "...# Markdown",
+      "difficulty": "intro", "node_type": "concept", "examples": []}}
   ],
   "relations": [
     {{"from": "节点A标题", "to": "节点B标题", "type": "PREREQUISITE"}}
@@ -313,7 +313,9 @@ class LLMAdapter:
   ]
 }}"""
 
-        result = await self.chat([{"role": "user", "content": prompt}], temperature=0.3, max_tokens=8192, use_cache=True)
+        result = await self.chat(
+            [{"role": "user", "content": prompt}], temperature=0.3, max_tokens=8192, use_cache=True
+        )
         # 调试：打印原始响应的最后 200 字符
         if len(result) > 8000:
             print(f"  [extract_knowledge] 响应长度: {len(result)} 字符，截断检查...")
@@ -323,6 +325,7 @@ class LLMAdapter:
     async def generate_syllabus(self, nodes: list[dict], domain_profile: dict) -> list[dict]:
         """生成大纲（模块分组）"""
         import json as _json
+
         titles = [n["title"] for n in nodes]
         prompt = f"""以下是知识点列表：{_json.dumps(titles, ensure_ascii=False)}
 
@@ -330,7 +333,9 @@ class LLMAdapter:
 每个模块包含名称和该模块包含的知识点标题列表。
 知识点必须按教学顺序排列（由浅入深）。"""
 
-        result = await self.chat([{"role": "user", "content": prompt}], temperature=0.3, max_tokens=4096, use_cache=True)
+        result = await self.chat(
+            [{"role": "user", "content": prompt}], temperature=0.3, max_tokens=4096, use_cache=True
+        )
         return self._parse_json(result)
 
     async def detect_domain(self, topic: str, text: str = "") -> dict:
@@ -340,7 +345,8 @@ class LLMAdapter:
 
 内容：{content[:3000]}
 
-可选领域：general（通用）, math（数学）, programming（编程）, language（语言）, history（历史）, physics（物理）, music（音乐）
+可选领域：general（通用）, math（数学）, programming（编程）,\
+  language（语言）, history（历史）, physics（物理）, music（音乐）
 
 返回 JSON：{{"domain": "领域ID", "confidence": 0.0~1.0, "reason": "简短理由"}}"""
 
@@ -352,9 +358,9 @@ class LLMAdapter:
         learner_style = self._learner_to_instruction(learner_profile)
         prompt = f"""{learner_style}
 
-当前知识点：{node.get('title')}
+当前知识点：{node.get("title")}
 学生已掌握该内容，想要延伸学习以下关联话题：
-{json.dumps([n.get('title') for n in related_nodes], ensure_ascii=False)}
+{json.dumps([n.get("title") for n in related_nodes], ensure_ascii=False)}
 
 请推荐一个最值得延伸的方向，并简要说明理由和学习路径建议（100字以内）。"""
 
@@ -376,9 +382,10 @@ class LLMAdapter:
         return hashlib.md5(raw.encode()).hexdigest()
 
     @classmethod
-    def _get_cached(cls, key: str) -> Optional[str]:
+    def _get_cached(cls, key: str) -> str | None:
         """从进程缓存获取"""
         import time
+
         entry = cls._response_cache.get(key)
         if entry:
             response, ts = entry
@@ -391,6 +398,7 @@ class LLMAdapter:
     def _set_cache(cls, key: str, response: str):
         """写入进程缓存"""
         import time
+
         cls._response_cache[key] = (response, time.time())
 
     @classmethod

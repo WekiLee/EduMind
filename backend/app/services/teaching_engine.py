@@ -1,10 +1,9 @@
 """教学引擎 —— 教学对话 + 领域适配 + 学习者适配"""
 
-from typing import Optional
 from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.llm.adapter import LLMAdapter
 from app.services.knowledge_graph import KnowledgeGraphService
-from app.core.config import settings
 
 
 class TeachingEngineService:
@@ -48,8 +47,9 @@ class TeachingEngineService:
         related = await self.kg.get_related_nodes(node_id)
         prerequisites = await self.kg.get_prerequisites(node_id)
 
-        all_related = related + [{"title": f"前置：{n.get('title', '')}", **n}
-                                  for n in prerequisites if n.get("id") != node_id]
+        all_related = related + [
+            {"title": f"前置：{n.get('title', '')}", **n} for n in prerequisites if n.get("id") != node_id
+        ]
 
         if not all_related:
             return {

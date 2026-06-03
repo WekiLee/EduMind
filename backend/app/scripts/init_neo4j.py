@@ -20,4 +20,5 @@ async def init_neo4j():
 
 if __name__ == "__main__":
     import asyncio
+
     asyncio.run(init_neo4j())

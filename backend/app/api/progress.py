@@ -1,10 +1,11 @@
 """进度 API"""
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
 from pydantic import BaseModel
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.security import get_current_user_id
@@ -24,9 +25,7 @@ async def get_path_progress(
 ):
     """获取路径全局进度"""
     # 验证路径存在且属于当前用户
-    result = await db.execute(
-        select(LearningPath).where(LearningPath.id == path_id, LearningPath.user_id == user_id)
-    )
+    result = await db.execute(select(LearningPath).where(LearningPath.id == path_id, LearningPath.user_id == user_id))
     path = result.scalar_one_or_none()
     if not path:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="学习路径不存在")
@@ -58,15 +57,17 @@ async def get_path_progress(
         module_progress_list = [p for p in progress_list if p["node_id"] in module_node_ids]
         completed_in_module = sum(1 for p in module_progress_list if p.get("status") == "completed")
         mastery_sum = sum(p.get("mastery", 0.0) or 0.0 for p in module_progress_list)
-        module_progress.append({
-            "module_name": module.get("module_name", ""),
-            "total_nodes": total_in_module,
-            "completed_nodes": completed_in_module,
-            "mastery": round(mastery_sum / total_in_module, 2) if total_in_module > 0 else 0,
-        })
+        module_progress.append(
+            {
+                "module_name": module.get("module_name", ""),
+                "total_nodes": total_in_module,
+                "completed_nodes": completed_in_module,
+                "mastery": round(mastery_sum / total_in_module, 2) if total_in_module > 0 else 0,
+            }
+        )
 
     # 需要复习的节点
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     review_due = []
     for p in progress_list:
         nr = p.get("next_review")
@@ -97,9 +98,7 @@ async def get_learning_report(
     db: AsyncSession = Depends(get_db),
 ):
     """学习报告（掌握度热力图 + 薄弱节点 + 时间统计）"""
-    result = await db.execute(
-        select(LearningPath).where(LearningPath.id == path_id, LearningPath.user_id == user_id)
-    )
+    result = await db.execute(select(LearningPath).where(LearningPath.id == path_id, LearningPath.user_id == user_id))
     path = result.scalar_one_or_none()
     if not path:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="学习路径不存在")
@@ -118,23 +117,28 @@ async def get_learning_report(
         mp_list = [p for p in progress_list if p["node_id"] in module_node_ids]
         total = len(mp_list)
         avg_mastery = sum(p.get("mastery", 0) or 0 for p in mp_list) / total if total > 0 else 0
-        module_mastery.append({
-            "module_name": module.get("module_name", ""),
-            "total_nodes": total,
-            "completed": sum(1 for p in mp_list if p.get("status") == "completed"),
-            "avg_mastery": round(avg_mastery, 2),
-        })
+        module_mastery.append(
+            {
+                "module_name": module.get("module_name", ""),
+                "total_nodes": total,
+                "completed": sum(1 for p in mp_list if p.get("status") == "completed"),
+                "avg_mastery": round(avg_mastery, 2),
+            }
+        )
 
     # 薄弱节点（掌握度 < 0.5）
     weak_nodes = [p for p in progress_list if (p.get("mastery", 0) or 0) < 0.5 and p.get("mastery", 0) > 0]
 
     # 时间统计（从 quiz_attempts 表获取）
     from app.models.quiz import QuizAttempt
+
     quiz_result = await db.execute(
-        select(QuizAttempt).where(
+        select(QuizAttempt)
+        .where(
             QuizAttempt.user_id == user_id,
             QuizAttempt.path_id == path_id,
-        ).order_by(QuizAttempt.created_at)
+        )
+        .order_by(QuizAttempt.created_at)
     )
     attempts = quiz_result.scalars().all()
     quiz_history = [
@@ -194,7 +198,7 @@ async def start_node(
             path_id=path_id,
             node_id=node_id,
             status="learning",
-            first_learned=datetime.now(timezone.utc),
+            first_learned=datetime.now(UTC),
         )
         db.add(np)
     else:
@@ -231,13 +235,13 @@ async def complete_node(
 
     np.status = "completed"
     np.mastery = req.mastery
-    np.last_reviewed = datetime.now(timezone.utc)
+    np.last_reviewed = datetime.now(UTC)
 
     # 计算下次复习时间
-    from app.services.assessment import AssessmentService
     interval_days = AssessmentService.compute_next_review(req.mastery, np.attempt_count)
     from datetime import timedelta
-    np.next_review = datetime.now(timezone.utc) + timedelta(days=interval_days)
+
+    np.next_review = datetime.now(UTC) + timedelta(days=interval_days)
 
     await db.flush()
     return {"data": np.to_dict()}

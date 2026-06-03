@@ -1,8 +1,8 @@
 """测试共享 Fixtures"""
 
 import pytest
-from app.services.syllabus import SyllabusService
 from app.services.assessment import AssessmentService
+from app.services.syllabus import SyllabusService
 
 
 @pytest.fixture

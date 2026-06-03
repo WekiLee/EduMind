@@ -1,17 +1,18 @@
 """WebSocket 教学对话 —— 实时文字聊天，支持断线重连上下文恢复"""
 
 import json
-import yaml
 import time
+from datetime import UTC, datetime
+
+import yaml
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from sqlalchemy import select
-from datetime import datetime, timezone
 
 from app.core.database import async_session_factory, get_redis
 from app.core.security import decode_access_token
-from app.models.quiz import ChatSession, ChatMessage
-from app.services.knowledge_graph import KnowledgeGraphService
 from app.llm.adapter import LLMAdapter
+from app.models.quiz import ChatMessage, ChatSession
+from app.services.knowledge_graph import KnowledgeGraphService
 
 router = APIRouter()
 
@@ -31,12 +32,13 @@ def load_domain_profile(domain_id: str) -> dict:
         return cached
 
     import os
+
     path = os.path.join("app", "domain_profiles", f"{domain_id}.yaml")
     if not os.path.exists(path):
         path = os.path.join("app", "domain_profiles", "general.yaml")
         domain_id = "general"
 
-    with open(path, "r", encoding="utf-8") as f:
+    with open(path, encoding="utf-8") as f:
         profile = yaml.safe_load(f)
 
     _domain_profile_cache[domain_id] = profile
@@ -51,15 +53,10 @@ async def load_chat_history(session_id: str) -> list[dict]:
 
     async with async_session_factory() as db:
         result = await db.execute(
-            select(ChatMessage)
-            .where(ChatMessage.session_id == session_id)
-            .order_by(ChatMessage.created_at.asc())
+            select(ChatMessage).where(ChatMessage.session_id == session_id).order_by(ChatMessage.created_at.asc())
         )
         msgs = result.scalars().all()
-        return [
-            {"role": msg.role, "content": msg.content}
-            for msg in msgs
-        ]
+        return [{"role": msg.role, "content": msg.content} for msg in msgs]
 
 
 async def save_message(session_id: str, role: str, content: str):
@@ -124,10 +121,13 @@ async def chat_websocket(websocket: WebSocket, token: str):
                 path_id = data.get("path_id", "")
 
                 if not content.strip():
-                    await websocket.send_json({
-                        "type": "error", "code": "empty_message",
-                        "message": "消息不能为空",
-                    })
+                    await websocket.send_json(
+                        {
+                            "type": "error",
+                            "code": "empty_message",
+                            "message": "消息不能为空",
+                        }
+                    )
                     continue
 
                 # 首次消息 → 创建会话 / 断线重连 → 恢复上下文
@@ -155,11 +155,13 @@ async def chat_websocket(websocket: WebSocket, token: str):
                             session_id = sess.id
                         chat_history = []
 
-                    await websocket.send_json({
-                        "type": "session_ready",
-                        "session_id": session_id,
-                        "restored": len(chat_history) > 0,
-                    })
+                    await websocket.send_json(
+                        {
+                            "type": "session_ready",
+                            "session_id": session_id,
+                            "restored": len(chat_history) > 0,
+                        }
+                    )
 
                 current_node_id = node_id
 
@@ -167,17 +169,22 @@ async def chat_websocket(websocket: WebSocket, token: str):
                 kg = KnowledgeGraphService()
                 node = await kg.get_node(node_id)
                 if not node:
-                    await websocket.send_json({
-                        "type": "error", "code": "node_not_found",
-                        "message": "节点不存在",
-                    })
+                    await websocket.send_json(
+                        {
+                            "type": "error",
+                            "code": "node_not_found",
+                            "message": "节点不存在",
+                        }
+                    )
                     continue
 
                 domain_id = node.get("domain_id", "general")
                 profile = load_domain_profile(domain_id)
                 learner_profile = {
-                    "abstraction_level": 0.5, "analogy_density": 0.5,
-                    "teaching_speed": 0.5, "feedback_tone": 0.5,
+                    "abstraction_level": 0.5,
+                    "analogy_density": 0.5,
+                    "teaching_speed": 0.5,
+                    "feedback_tone": 0.5,
                 }
 
                 # 保存用户消息
@@ -188,7 +195,10 @@ async def chat_websocket(websocket: WebSocket, token: str):
                 if LLMAdapter.need_summary(chat_history):
                     summary = await llm.summarize_context(chat_history)
                     chat_history = [
-                        {"role": "system", "content": f"以下是对之前对话的摘要，请基于此继续教学：{summary}"},
+                        {
+                            "role": "system",
+                            "content": f"以下是对之前对话的摘要，请基于此继续教学：{summary}",
+                        },
                     ] + chat_history[-4:]  # 保留最近 4 条
 
                 # ── LLM 回答 ──
@@ -202,15 +212,19 @@ async def chat_websocket(websocket: WebSocket, token: str):
 
                 # 流式发送
                 for i in range(0, len(answer), 20):
-                    await websocket.send_json({
-                        "type": "teaching_chunk",
+                    await websocket.send_json(
+                        {
+                            "type": "teaching_chunk",
+                            "session_id": session_id,
+                            "content": answer[i : i + 20],
+                        }
+                    )
+                await websocket.send_json(
+                    {
+                        "type": "teaching_done",
                         "session_id": session_id,
-                        "content": answer[i:i + 20],
-                    })
-                await websocket.send_json({
-                    "type": "teaching_done",
-                    "session_id": session_id,
-                })
+                    }
+                )
 
                 # 保存 AI 回答
                 await save_message(session_id, "assistant", answer)
@@ -221,12 +235,10 @@ async def chat_websocket(websocket: WebSocket, token: str):
 
                 # 更新会话消息计数
                 async with async_session_factory() as db:
-                    await db.execute(
-                        select(ChatSession).where(ChatSession.id == session_id)
-                    )
-                    sess = (await db.execute(
-                        select(ChatSession).where(ChatSession.id == session_id)
-                    )).scalar_one_or_none()
+                    await db.execute(select(ChatSession).where(ChatSession.id == session_id))
+                    sess = (
+                        await db.execute(select(ChatSession).where(ChatSession.id == session_id))
+                    ).scalar_one_or_none()
                     if sess:
                         sess.message_count += 1
                         await db.commit()
@@ -237,42 +249,50 @@ async def chat_websocket(websocket: WebSocket, token: str):
                 kg = KnowledgeGraphService()
                 node = await kg.get_node(node_id)
                 if not node:
-                    await websocket.send_json({
-                        "type": "error", "code": "node_not_found",
-                        "message": "节点不存在",
-                    })
+                    await websocket.send_json(
+                        {
+                            "type": "error",
+                            "code": "node_not_found",
+                            "message": "节点不存在",
+                        }
+                    )
                     continue
 
                 related = await kg.get_related_nodes(node_id)
                 prereqs = await kg.get_prerequisites(node_id)
                 all_related = related + [
-                    {"title": f"前置：{n.get('title', '')}", **n}
-                    for n in prereqs if n.get("id") != node_id
+                    {"title": f"前置：{n.get('title', '')}", **n} for n in prereqs if n.get("id") != node_id
                 ]
 
                 learner_profile = {
-                    "abstraction_level": 0.5, "analogy_density": 0.5,
-                    "teaching_speed": 0.5, "feedback_tone": 0.5,
+                    "abstraction_level": 0.5,
+                    "analogy_density": 0.5,
+                    "teaching_speed": 0.5,
+                    "feedback_tone": 0.5,
                 }
                 suggestion = await llm.suggest_extension(node, all_related, learner_profile)
 
-                await websocket.send_json({
-                    "type": "extension",
-                    "session_id": session_id,
-                    "content": suggestion,
-                    "related_nodes": [
-                        {"id": n.get("id"), "title": n.get("title", ""), "relation": "延伸"}
-                        for n in all_related[:5]
-                    ],
-                })
+                await websocket.send_json(
+                    {
+                        "type": "extension",
+                        "session_id": session_id,
+                        "content": suggestion,
+                        "related_nodes": [
+                            {"id": n.get("id"), "title": n.get("title", ""), "relation": "延伸"}
+                            for n in all_related[:5]
+                        ],
+                    }
+                )
 
             # ── 请求测验 ──
             elif msg_type == "request_quiz":
-                await websocket.send_json({
-                    "type": "quiz_requested",
-                    "session_id": session_id,
-                    "node_id": current_node_id,
-                })
+                await websocket.send_json(
+                    {
+                        "type": "quiz_requested",
+                        "session_id": session_id,
+                        "node_id": current_node_id,
+                    }
+                )
 
     except WebSocketDisconnect:
         pass
@@ -280,9 +300,7 @@ async def chat_websocket(websocket: WebSocket, token: str):
         # 关闭时标记会话结束
         if session_id:
             async with async_session_factory() as db:
-                sess = (await db.execute(
-                    select(ChatSession).where(ChatSession.id == session_id)
-                )).scalar_one_or_none()
+                sess = (await db.execute(select(ChatSession).where(ChatSession.id == session_id))).scalar_one_or_none()
                 if sess:
-                    sess.ended_at = datetime.now(timezone.utc)
+                    sess.ended_at = datetime.now(UTC)
                     await db.commit()

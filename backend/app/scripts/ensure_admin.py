@@ -1,13 +1,13 @@
 """初始化内置管理员账号"""
 
-import uuid
-from datetime import datetime, timezone
-from sqlalchemy import select, func
-from app.core.database import async_session_factory
-from app.models.user import User
-from app.models.system_config import SystemConfig
-from app.core.security import hash_password
+from datetime import UTC, datetime
 
+from sqlalchemy import func, select
+
+from app.core.database import async_session_factory
+from app.core.security import hash_password
+from app.models.system_config import SystemConfig
+from app.models.user import User
 
 DEFAULT_ADMIN = {
     "name": "admin",
@@ -24,12 +24,8 @@ async def ensure_admin():
 
         if admin_count > 0:
             # 清理旧版因 email 格式错误创建的管理员
-            await db.execute(
-                select(User).where(User.email == "admin@edumind.local")
-            )
-            old = (await db.execute(
-                select(User).where(User.email == "admin@edumind.local")
-            )).scalar_one_or_none()
+            await db.execute(select(User).where(User.email == "admin@edumind.local"))
+            old = (await db.execute(select(User).where(User.email == "admin@edumind.local"))).scalar_one_or_none()
             if old:
                 await db.delete(old)
                 await db.commit()
@@ -45,7 +41,7 @@ async def ensure_admin():
             role="admin",
             must_change_password=True,
             learner_profile={},
-            created_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
         )
         db.add(admin)
         await db.flush()

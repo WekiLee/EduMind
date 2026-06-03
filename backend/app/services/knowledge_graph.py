@@ -1,7 +1,7 @@
 """知识图谱服务 —— Neo4j 操作封装"""
 
 import uuid
-from typing import Optional
+
 from app.core.database import get_neo4j_driver
 
 
@@ -76,7 +76,12 @@ class KnowledgeGraphService:
             MATCH (n:KnowledgeNode {id: $node_id})
             MERGE (n)-[:PART_OF]->(m)
             """,
-            {"module_name": module_name, "module_order": module_order, "path_id": path_id, "node_id": node_id},
+            {
+                "module_name": module_name,
+                "module_order": module_order,
+                "path_id": path_id,
+                "node_id": node_id,
+            },
         )
 
         return node_id
@@ -86,7 +91,7 @@ class KnowledgeGraphService:
         title_to_id = {}
 
         # 1. 创建所有节点
-        for idx, node_data in enumerate(knowledge.get("nodes", [])):
+        for _idx, node_data in enumerate(knowledge.get("nodes", [])):
             node_data["domain_id"] = domain_id
             node_data["source"] = "llm_generated"
 
@@ -128,7 +133,7 @@ class KnowledgeGraphService:
 
     # ── 查询操作 ──
 
-    async def get_node(self, node_id: str) -> Optional[dict]:
+    async def get_node(self, node_id: str) -> dict | None:
         """获取单个节点"""
         results = await self._run(
             "MATCH (n:KnowledgeNode {id: $id}) RETURN n",
@@ -141,13 +146,16 @@ class KnowledgeGraphService:
 
     async def get_path_nodes(self, path_id: str) -> list[dict]:
         """获取路径的所有节点"""
-        results = await self._run("""
+        results = await self._run(
+            """
             MATCH (n:KnowledgeNode)-[:PART_OF]->(m:Module {path_id: $path_id})
             OPTIONAL MATCH (n)-[:PREREQUISITE]->(pre:KnowledgeNode)
             WITH n, m, collect(pre.id) AS prerequisites
             RETURN n, m, prerequisites
             ORDER BY m.order, n.difficulty
-        """, {"path_id": path_id})
+        """,
+            {"path_id": path_id},
+        )
         return [
             {
                 "node": self._node_to_dict(r["n"]),
@@ -159,11 +167,14 @@ class KnowledgeGraphService:
 
     async def get_subgraph(self, node_id: str, depth: int = 2) -> dict:
         """获取以节点为中心的子图（用于图谱可视化）"""
-        results = await self._run("""
+        results = await self._run(
+            """
             MATCH (n:KnowledgeNode {id: $node_id})
             OPTIONAL MATCH (n)-[:PREREQUISITE|RELATED|EXTENDS*1..2]-(related)
             RETURN n, collect(DISTINCT related) AS related_nodes
-        """, {"node_id": node_id})
+        """,
+            {"node_id": node_id},
+        )
 
         if not results:
             return {"nodes": [], "edges": []}
@@ -178,11 +189,14 @@ class KnowledgeGraphService:
         edges = []
         node_ids = list(all_nodes.keys())
         for nid in node_ids:
-            edge_results = await self._run("""
+            edge_results = await self._run(
+                """
                 MATCH (a:KnowledgeNode {id: $from_id})-[r]->(b:KnowledgeNode)
                 WHERE b.id IN $node_ids
                 RETURN a.id AS source, b.id AS target, type(r) AS type
-            """, {"from_id": nid, "node_ids": node_ids})
+            """,
+                {"from_id": nid, "node_ids": node_ids},
+            )
             edges.extend(edge_results)
 
         return {
@@ -192,30 +206,39 @@ class KnowledgeGraphService:
 
     async def get_prerequisites(self, node_id: str) -> list[dict]:
         """获取节点的所有前置节点"""
-        results = await self._run("""
+        results = await self._run(
+            """
             MATCH (n:KnowledgeNode {id: $node_id})
             MATCH (pre)-[:PREREQUISITE*]->(n)
             RETURN DISTINCT pre
-        """, {"node_id": node_id})
+        """,
+            {"node_id": node_id},
+        )
         return [self._node_to_dict(r["pre"]) for r in results]
 
     async def get_related_nodes(self, node_id: str) -> list[dict]:
         """获取节点的关联节点"""
-        results = await self._run("""
+        results = await self._run(
+            """
             MATCH (n:KnowledgeNode {id: $node_id})
             MATCH (n)-[:RELATED|EXTENDS]-(related)
             RETURN DISTINCT related
-        """, {"node_id": node_id})
+        """,
+            {"node_id": node_id},
+        )
         return [self._node_to_dict(r["related"]) for r in results]
 
     # ── 删除操作 ──
 
     async def delete_path_graph(self, path_id: str):
         """删除路径的所有节点和关系"""
-        await self._run("""
+        await self._run(
+            """
             MATCH (n:KnowledgeNode)-[:PART_OF]->(m:Module {path_id: $path_id})
             DETACH DELETE n, m
-        """, {"path_id": path_id})
+        """,
+            {"path_id": path_id},
+        )
 
     async def delete_node(self, node_id: str):
         """删除单节点"""
@@ -246,9 +269,12 @@ class KnowledgeGraphService:
 
     async def module_summary(self, path_id: str) -> list[dict]:
         """获取路径的模块摘要"""
-        results = await self._run("""
+        results = await self._run(
+            """
             MATCH (n:KnowledgeNode)-[:PART_OF]->(m:Module {path_id: $path_id})
             RETURN m.name AS module_name, m.order AS module_order, count(n) AS node_count
             ORDER BY m.order
-        """, {"path_id": path_id})
+        """,
+            {"path_id": path_id},
+        )
         return results

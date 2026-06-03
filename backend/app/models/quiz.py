@@ -1,8 +1,10 @@
 """测验相关模型"""
 
 import uuid
-from datetime import datetime, timezone
-from sqlalchemy import Column, String, Text, DateTime, JSON, Float, Integer, ForeignKey
+from datetime import UTC, datetime
+
+from sqlalchemy import JSON, Column, DateTime, Float, ForeignKey, Integer, String, Text
+
 from app.core.database import Base
 
 
@@ -17,7 +19,7 @@ class QuizAttempt(Base):
     total_questions = Column(Integer, nullable=False)
     correct_count = Column(Integer, nullable=False)
     answers = Column(JSON, default=list)  # [{"question_id": "...", "selected": "A", "correct": true}]
-    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
 
 
 class ChatSession(Base):
@@ -27,7 +29,7 @@ class ChatSession(Base):
     user_id = Column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     path_id = Column(String(36), ForeignKey("learning_paths.id", ondelete="CASCADE"), nullable=False)
     node_id = Column(String(255), nullable=True)
-    started_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    started_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
     ended_at = Column(DateTime(timezone=True), nullable=True)
     message_count = Column(Integer, default=0)
 
@@ -40,4 +42,4 @@ class ChatMessage(Base):
     role = Column(String(20), nullable=False)  # user | assistant | system
     content = Column(Text, nullable=False)
     extra_data = Column(JSON, default=dict)
-    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))

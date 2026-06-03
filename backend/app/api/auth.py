@@ -1,14 +1,19 @@
 """认证 API —— 首位用户自动为管理员"""
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
 from pydantic import BaseModel, EmailStr
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.core.security import hash_password, verify_password, create_access_token, get_current_user_id
-from app.models.user import User
+from app.core.security import (
+    create_access_token,
+    get_current_user_id,
+    hash_password,
+    verify_password,
+)
 from app.models.system_config import SystemConfig
+from app.models.user import User
 
 router = APIRouter(prefix="/auth", tags=["认证"])
 

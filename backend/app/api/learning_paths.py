@@ -1,11 +1,11 @@
 """学习路径 API"""
 
 import uuid
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
+
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from pydantic import BaseModel
-from typing import Optional
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.security import get_current_user_id
@@ -33,6 +33,7 @@ async def create_learning_path(
     """创建学习路径（主题模式）"""
     # 管理员不能学习
     from app.models.user import User
+
     result = await db.execute(select(User).where(User.id == user_id))
     user = result.scalar_one_or_none()
     if user and user.role == "admin":
@@ -45,14 +46,14 @@ async def create_learning_path(
 class CreatePathByUpload(BaseModel):
     mode: str = "upload"
     domain_id: str = "general"
-    topic: Optional[str] = None
+    topic: str | None = None
 
 
 @router.post("/upload", status_code=201)
 async def create_path_by_upload(
     file: UploadFile = File(...),
     domain_id: str = Form("general"),
-    topic: Optional[str] = Form(None),
+    topic: str | None = Form(None),
     user_id: str = Depends(get_current_user_id),
     db: AsyncSession = Depends(get_db),
 ):
@@ -67,8 +68,9 @@ async def create_path_by_upload(
         )
 
     # 保存到临时文件
-    import tempfile
     import os
+    import tempfile
+
     temp_path = os.path.join(tempfile.gettempdir(), f"upload_{uuid.uuid4().hex}.{ext}")
     content = await file.read()
     with open(temp_path, "wb") as f:
@@ -79,7 +81,7 @@ async def create_path_by_upload(
         path = await pipeline.process_upload(user_id, temp_path, domain_id, topic)
         return {"data": path.to_dict()}
     except Exception as e:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)) from e
     finally:
         if os.path.exists(temp_path):
             os.remove(temp_path)
@@ -94,9 +96,7 @@ async def list_learning_paths(
 ):
     """获取学习路径列表"""
     # 计算总数
-    count_result = await db.execute(
-        select(func.count(LearningPath.id)).where(LearningPath.user_id == user_id)
-    )
+    count_result = await db.execute(select(func.count(LearningPath.id)).where(LearningPath.user_id == user_id))
     total = count_result.scalar()
 
     # 分页查询
@@ -117,8 +117,7 @@ async def list_learning_paths(
         syllabus_nodes = sum(len(m.get("node_ids", [])) for m in (path.syllabus or []))
         # 已完成的节点数
         comp_result = await db.execute(
-            select(func.count(NodeProgress.id))
-            .where(
+            select(func.count(NodeProgress.id)).where(
                 NodeProgress.path_id == path.id,
                 NodeProgress.user_id == user_id,
                 NodeProgress.status == "completed",
@@ -140,9 +139,7 @@ async def get_learning_path(
     db: AsyncSession = Depends(get_db),
 ):
     """获取路径详情（含大纲）"""
-    result = await db.execute(
-        select(LearningPath).where(LearningPath.id == path_id, LearningPath.user_id == user_id)
-    )
+    result = await db.execute(select(LearningPath).where(LearningPath.id == path_id, LearningPath.user_id == user_id))
     path = result.scalar_one_or_none()
     if not path:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="学习路径不存在")
@@ -170,12 +167,14 @@ async def get_learning_path(
         enriched_module = {**module, "nodes": []}
         for nid in module.get("node_ids", []):
             np_dict = progress_map.get(nid, {"status": "not_started", "mastery": 0.0})
-            enriched_module["nodes"].append({
-                "id": nid,
-                "title": node_titles.get(nid, nid[:12]),
-                "status": np_dict.get("status", "not_started"),
-                "mastery": np_dict.get("mastery", 0.0),
-            })
+            enriched_module["nodes"].append(
+                {
+                    "id": nid,
+                    "title": node_titles.get(nid, nid[:12]),
+                    "status": np_dict.get("status", "not_started"),
+                    "mastery": np_dict.get("mastery", 0.0),
+                }
+            )
         enriched_syllabus.append(enriched_module)
     pd["syllabus"] = enriched_syllabus
 
@@ -190,9 +189,7 @@ async def update_syllabus(
     db: AsyncSession = Depends(get_db),
 ):
     """更新大纲（用户拖拽调整后）"""
-    result = await db.execute(
-        select(LearningPath).where(LearningPath.id == path_id, LearningPath.user_id == user_id)
-    )
+    result = await db.execute(select(LearningPath).where(LearningPath.id == path_id, LearningPath.user_id == user_id))
     path = result.scalar_one_or_none()
     if not path:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="学习路径不存在")
@@ -209,9 +206,7 @@ async def delete_learning_path(
     db: AsyncSession = Depends(get_db),
 ):
     """删除学习路径及关联数据"""
-    result = await db.execute(
-        select(LearningPath).where(LearningPath.id == path_id, LearningPath.user_id == user_id)
-    )
+    result = await db.execute(select(LearningPath).where(LearningPath.id == path_id, LearningPath.user_id == user_id))
     path = result.scalar_one_or_none()
     if not path:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="学习路径不存在")

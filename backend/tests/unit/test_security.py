@@ -1,10 +1,14 @@
 """Security 单元测试 —— JWT + 密码哈希"""
 
-import pytest
-from datetime import datetime, timedelta, timezone
-from jose import jwt, JWTError
-from app.core.security import hash_password, verify_password, create_access_token, decode_access_token
+from datetime import datetime, timedelta
+
 from app.core.config import settings
+from app.core.security import (
+    create_access_token,
+    decode_access_token,
+    hash_password,
+    verify_password,
+)
 
 
 class TestPassword:
@@ -24,7 +28,6 @@ class TestPassword:
         assert verify_password("wrong_password", hashed) is False
 
     def test_different_hashes(self):
-        """相同明文每次哈希结果不同（salt）"""
         h1 = hash_password("same_password")
         h2 = hash_password("same_password")
         assert h1 != h2
@@ -50,13 +53,13 @@ class TestJWT:
         assert result is None
 
     def test_decode_expired_token(self):
-        """过期令牌应返回 None"""
         from jose import jwt as jose_jwt
+
         expired = jose_jwt.encode(
             {
                 "sub": "user-1",
-                "exp": datetime.now(timezone.utc) - timedelta(hours=1),
-                "iat": datetime.now(timezone.utc) - timedelta(hours=2),
+                "exp": datetime.now(datetime.UTC) - timedelta(hours=1),
+                "iat": datetime.now(datetime.UTC) - timedelta(hours=2),
             },
             settings.jwt_secret,
             algorithm=settings.jwt_algorithm,

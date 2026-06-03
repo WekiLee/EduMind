@@ -1,9 +1,10 @@
 """数据库连接管理 —— PostgreSQL (SQLAlchemy async) + Neo4j + Redis"""
 
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
-from sqlalchemy.orm import DeclarativeBase
 from neo4j import AsyncGraphDatabase
 from redis.asyncio import Redis
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.orm import DeclarativeBase
+
 from app.core.config import settings
 
 # ── PostgreSQL ──

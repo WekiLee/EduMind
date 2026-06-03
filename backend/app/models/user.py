@@ -1,8 +1,10 @@
 """用户模型"""
 
 import uuid
-from datetime import datetime, timezone
-from sqlalchemy import Column, String, DateTime, JSON, Boolean
+from datetime import UTC, datetime
+
+from sqlalchemy import JSON, Boolean, Column, DateTime, String
+
 from app.core.database import Base
 
 
@@ -19,9 +21,12 @@ class User(Base):
     organization = Column(String(200), nullable=True)
     domain_id = Column(String(50), default="general")
     learner_profile = Column(JSON, default=dict)
-    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
-    updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc),
-                        onupdate=lambda: datetime.now(timezone.utc))
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+    updated_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+    )
 
     def to_dict(self) -> dict:
         return {

@@ -1,11 +1,12 @@
 """安全模块 —— JWT 令牌 + 密码哈希"""
 
-from datetime import datetime, timedelta, timezone
-from typing import Optional
+from datetime import UTC, datetime, timedelta
+
+from fastapi import Depends, HTTPException, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
 from passlib.context import CryptContext
-from fastapi import Depends, HTTPException, status
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+
 from app.core.config import settings
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -13,6 +14,7 @@ security = HTTPBearer()
 
 
 # ── 密码 ──
+
 
 def hash_password(password: str) -> str:
     """对明文密码进行 bcrypt 哈希"""
@@ -26,14 +28,15 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 
 # ── JWT ──
 
+
 def create_access_token(user_id: str) -> str:
     """创建 JWT 访问令牌"""
-    expire = datetime.now(timezone.utc) + timedelta(hours=settings.jwt_expiration_hours)
-    payload = {"sub": user_id, "exp": expire, "iat": datetime.now(timezone.utc)}
+    expire = datetime.now(UTC) + timedelta(hours=settings.jwt_expiration_hours)
+    payload = {"sub": user_id, "exp": expire, "iat": datetime.now(UTC)}
     return jwt.encode(payload, settings.jwt_secret, algorithm=settings.jwt_algorithm)
 
 
-def decode_access_token(token: str) -> Optional[str]:
+def decode_access_token(token: str) -> str | None:
     """解码 JWT 令牌，返回 user_id；失败返回 None"""
     try:
         payload = jwt.decode(token, settings.jwt_secret, algorithms=[settings.jwt_algorithm])

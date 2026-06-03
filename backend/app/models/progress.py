@@ -1,8 +1,9 @@
 """节点进度模型"""
 
 import uuid
-from datetime import datetime, timezone
-from sqlalchemy import Column, String, DateTime, JSON, Float, Integer, ForeignKey, UniqueConstraint
+
+from sqlalchemy import JSON, Column, DateTime, Float, ForeignKey, Integer, String, UniqueConstraint
+
 from app.core.database import Base
 
 
@@ -21,9 +22,7 @@ class NodeProgress(Base):
     last_reviewed = Column(DateTime(timezone=True), nullable=True)
     next_review = Column(DateTime(timezone=True), nullable=True)
 
-    __table_args__ = (
-        UniqueConstraint("user_id", "path_id", "node_id", name="uq_user_path_node"),
-    )
+    __table_args__ = (UniqueConstraint("user_id", "path_id", "node_id", name="uq_user_path_node"),)
 
     def to_dict(self) -> dict:
         return {

@@ -1,17 +1,12 @@
 """内容管道 —— 混合内容源提取 + 领域识别 + 结构化入库"""
 
-import os
-import json
-import uuid
-import tempfile
 from pathlib import Path
-from typing import Optional
+
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
-from app.core.config import settings
+
+from app.llm.adapter import LLMAdapter
 from app.models.path import LearningPath
 from app.services.knowledge_graph import KnowledgeGraphService
-from app.llm.adapter import LLMAdapter
 
 
 class ContentPipelineService:
@@ -51,7 +46,9 @@ class ContentPipelineService:
 
         return path
 
-    async def process_upload(self, user_id: str, file_path: str, domain_id: str, topic: Optional[str] = None) -> LearningPath:
+    async def process_upload(
+        self, user_id: str, file_path: str, domain_id: str, topic: str | None = None
+    ) -> LearningPath:
         """模式B：通过上传文件生成学习路径"""
         # 1. 提取文本
         text = self._extract_text(file_path)
@@ -91,10 +88,10 @@ class ContentPipelineService:
         """从文件提取文本"""
         ext = Path(file_path).suffix.lower()
         if ext == ".txt":
-            with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
+            with open(file_path, encoding="utf-8", errors="ignore") as f:
                 return f.read()
         elif ext == ".md":
-            with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
+            with open(file_path, encoding="utf-8", errors="ignore") as f:
                 return f.read()
         elif ext == ".pdf":
             return self._extract_pdf(file_path)
@@ -108,20 +105,22 @@ class ContentPipelineService:
         """提取 PDF 文本"""
         try:
             from unstructured.partition.pdf import partition_pdf
+
             elements = partition_pdf(filename=file_path)
             return "\n".join([str(e) for e in elements])
         except ImportError:
-            raise ImportError("需要安装 unstructured[pdf]：pip install unstructured[pdf]")
+            raise ImportError("需要安装 unstructured[pdf]：pip install unstructured[pdf]") from None
 
     @staticmethod
     def _extract_docx(file_path: str) -> str:
         """提取 Word 文本"""
         try:
             from unstructured.partition.docx import partition_docx
+
             elements = partition_docx(filename=file_path)
             return "\n".join([str(e) for e in elements])
         except ImportError:
-            raise ImportError("需要安装 unstructured[docx]：pip install unstructured[docx]")
+            raise ImportError("需要安装 unstructured[docx]：pip install unstructured[docx]") from None
 
     @staticmethod
     def _resolve_syllabus_ids(syllabus: list, node_id_map: dict[str, str]) -> list[dict]:
@@ -141,18 +140,22 @@ class ContentPipelineService:
                 # LLM 返回了数组格式 [模块名, [节点列表]]
                 mod_name = str(module[0]) if len(module) > 0 else "未命名模块"
                 node_titles = module[1] if len(module) > 1 and isinstance(module[1], list) else []
-                resolved.append({
-                    "module_name": mod_name,
-                    "order": len(resolved) + 1,
-                    "node_ids": [node_id_map.get(t, t) for t in node_titles],
-                })
+                resolved.append(
+                    {
+                        "module_name": mod_name,
+                        "order": len(resolved) + 1,
+                        "node_ids": [node_id_map.get(t, t) for t in node_titles],
+                    }
+                )
                 continue
             # dict 格式
             mod_name = module.get("name") or module.get("module_name", f"模块{len(resolved) + 1}")
             node_titles = module.get("node_titles") or module.get("nodes") or module.get("node_ids", [])
-            resolved.append({
-                "module_name": mod_name,
-                "order": module.get("order", len(resolved) + 1),
-                "node_ids": [node_id_map.get(t, t) for t in node_titles if isinstance(t, str)],
-            })
+            resolved.append(
+                {
+                    "module_name": mod_name,
+                    "order": module.get("order", len(resolved) + 1),
+                    "node_ids": [node_id_map.get(t, t) for t in node_titles if isinstance(t, str)],
+                }
+            )
         return resolved
