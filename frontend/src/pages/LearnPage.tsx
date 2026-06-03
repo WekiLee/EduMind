@@ -211,7 +211,7 @@ export default function LearnPage() {
               <div className="text-sm text-gray-700 leading-relaxed">
                 {renderContent(currentNode.content)}
               </div>
-              {currentNode.examples?.length > 0 && (
+              {currentNode.examples && currentNode.examples.length > 0 && (
                 <div className="mt-3 pt-3 border-t border-gray-100">
                   <p className="text-xs font-medium text-gray-500 mb-2">📎 示例</p>
                   {currentNode.examples.map((ex: string, i: number) => (
@@ -219,7 +219,7 @@ export default function LearnPage() {
                   ))}
                 </div>
               )}
-              {currentNode.code_snippets?.length > 0 && (
+              {currentNode.code_snippets && currentNode.code_snippets.length > 0 && (
                 <div className="mt-3 pt-3 border-t border-gray-100">
                   <p className="text-xs font-medium text-gray-500 mb-2">💻 代码</p>
                   {currentNode.code_snippets.map((code: string, i: number) => (

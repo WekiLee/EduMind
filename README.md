@@ -1,5 +1,15 @@
 # EduMind — 智能导师系统
 
+<p align="center">
+  <a href="https://github.com/WekiLee/EduMind/actions/workflows/ci.yml"><img src="https://github.com/WekiLee/EduMind/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL%20v3-blue.svg" alt="License: AGPL v3"></a>
+  <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/python-3.11%2B-blue.svg" alt="Python 3.11+"></a>
+  <a href="https://nodejs.org/"><img src="https://img.shields.io/badge/node-18%2B-green.svg" alt="Node 18+"></a>
+  <a href="https://github.com/WekiLee/EduMind"><img src="https://img.shields.io/github/stars/WekiLee/EduMind?style=social" alt="GitHub stars"></a>
+  <a href="docs/DESIGN.md"><img src="https://img.shields.io/badge/docs-online-brightgreen.svg" alt="Docs"></a>
+  <a href="CONTRIBUTING.md"><img src="https://img.shields.io/badge/PRs-welcome-orange.svg" alt="PRs Welcome"></a>
+</p>
+
 > **English**：[README_EN.md](README_EN.md)
 >
 > 开源的 AI 驱动个人导师——像一位私人家教，从零到一帮学习者建立完整知识图谱，教、练、评、拓一体化。

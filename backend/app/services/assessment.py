@@ -33,12 +33,18 @@ class AssessmentService:
         注意：前端提交的是完整选项文本（"A. xxx"），后端存储的答案可能是
         字母（"A"）或完整文本，需要兼容比较。
         """
-        answer_map = {a["question_id"]: a.get("selected", "") for a in answers}
+        answer_map = {}
+        for a in answers:
+            qid = a.get("question_id", "")
+            if qid:
+                answer_map[qid] = a.get("selected", "")
         results = []
         correct_count = 0
 
         for q in questions:
-            qid = q["id"]
+            qid = q.get("id", "")
+            if not qid:
+                continue
             selected = (answer_map.get(qid, "") or "").strip()
             correct = (q.get("answer", "") or "").strip()
 
@@ -119,7 +125,7 @@ class AssessmentService:
         """
         total = len(node_progress_list)
         if total == 0:
-            return {"total": 0, "completed": 0, "overall_mastery": 0.0}
+            return {"total_nodes": 0, "completed_nodes": 0, "progress_pct": 0, "overall_mastery": 0.0}
 
         completed = sum(1 for np in node_progress_list if np.get("status") == "completed")
         total_mastery = sum(np.get("mastery", 0.0) or 0.0 for np in node_progress_list)

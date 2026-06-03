@@ -86,12 +86,12 @@ async def generate_quiz(
         for q in questions
     ]
 
-    # 更新进度
+    # 更新进度（用 limit(1) 避免跨路径时 MultipleResultsFound）
     result = await db.execute(
         select(NodeProgress).where(
             NodeProgress.user_id == user_id,
             NodeProgress.node_id == node_id,
-        )
+        ).limit(1)
     )
     np = result.scalar_one_or_none()
     if np:

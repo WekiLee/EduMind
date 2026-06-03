@@ -8,6 +8,8 @@ interface KnowledgeNode {
   difficulty: string;
   domain_id: string;
   node_type: string;
+  examples?: string[];
+  code_snippets?: string[];
   prerequisites: { id: string; title: string }[];
   related_nodes: { id: string; title: string }[];
 }
@@ -23,7 +25,7 @@ interface Module {
   module_name: string;
   order: number;
   node_ids: string[];
-  nodes: { id: string; status: string; mastery: number }[];
+  nodes: { id: string; title?: string; status: string; mastery: number }[];
 }
 
 interface LearningPath {

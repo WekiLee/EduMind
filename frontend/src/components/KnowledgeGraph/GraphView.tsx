@@ -60,14 +60,14 @@ export default function GraphView({ nodes, edges, currentNodeId, onNodeClick, wi
       size: n.id === currentNodeId ? 28 : 22,
       font: { size: 11, color: '#374151' },
       title: `${n.title}\n掌握度: ${((n.mastery ?? 0) * 100).toFixed(0)}%\n状态: ${n.status || '未开始'}`,
-    })));
+    }) as any));
 
     const visEdges = new DataSet(edges.map((e) => ({
       from: e.source,
       to: e.target,
       ...edgeStyle(e.type),
       title: e.type === 'PREREQUISITE' ? '前置依赖' : e.type === 'RELATED' ? '关联' : '延伸',
-    })));
+    }) as any));
 
     const options = {
       physics: {
@@ -80,7 +80,7 @@ export default function GraphView({ nodes, edges, currentNodeId, onNodeClick, wi
         dragView: true,
       },
       edges: {
-        smooth: { type: 'curvedCW', roundness: 0.1 },
+        smooth: { enabled: true, type: 'curvedCW', roundness: 0.1 },
       },
     };
 

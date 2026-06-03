@@ -1,5 +1,15 @@
 # EduMind — AI Tutor System
 
+<p align="center">
+  <a href="https://github.com/WekiLee/EduMind/actions/workflows/ci.yml"><img src="https://github.com/WekiLee/EduMind/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL%20v3-blue.svg" alt="License: AGPL v3"></a>
+  <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/python-3.11%2B-blue.svg" alt="Python 3.11+"></a>
+  <a href="https://nodejs.org/"><img src="https://img.shields.io/badge/node-18%2B-green.svg" alt="Node 18+"></a>
+  <a href="https://github.com/WekiLee/EduMind"><img src="https://img.shields.io/github/stars/WekiLee/EduMind?style=social" alt="GitHub stars"></a>
+  <a href="docs/DESIGN.md"><img src="https://img.shields.io/badge/docs-online-brightgreen.svg" alt="Docs"></a>
+  <a href="CONTRIBUTING.md"><img src="https://img.shields.io/badge/PRs-welcome-orange.svg" alt="PRs Welcome"></a>
+</p>
+
 > **中文版**：[README.md](README.md)
 >
 > An open-source, AI-driven personal tutor — like a private teacher that helps learners build a complete knowledge graph from scratch, integrating teaching, practice, assessment, and exploration.
