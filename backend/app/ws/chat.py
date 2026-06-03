@@ -140,9 +140,11 @@ async def chat_websocket(websocket: WebSocket, token: str):
 
                     if chat_history is None and session_id:
                         # Redis 没有 → 从 DB 恢复（慢路径）
-                        chat_history = await load_chat_history(session_id)
+                        loaded = await load_chat_history(session_id)
+                        if loaded is not None:
+                            chat_history = loaded
 
-                    if not session_id or chat_history is None:
+                    if not session_id or chat_history is None or len(chat_history) == 0:
                         # 全新会话
                         async with async_session_factory() as db:
                             sess = ChatSession(

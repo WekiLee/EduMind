@@ -19,7 +19,7 @@ class LLMAdapter:
     """
 
     # 类级缓存（进程内，所有实例共享）
-    _response_cache: dict[str, tuple[str, int]] = {}
+    _response_cache: dict[str, tuple[str, float]] = {}
     _domain_profile_cache: dict[str, dict] = {}
     # 运行时配置（管理员通过 Web UI 设置，重启后从 DB 加载）
     _runtime_provider: str | None = None
@@ -318,6 +318,7 @@ class LLMAdapter:
         )
         # 调试：打印原始响应的最后 200 字符
         if len(result) > 8000:
+            assert isinstance(result, str)
             print(f"  [extract_knowledge] 响应长度: {len(result)} 字符，截断检查...")
             print(f"  [extract_knowledge] 末尾: ...{result[-200:]}")
         return self._parse_json(result)

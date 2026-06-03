@@ -130,7 +130,7 @@ async def update_user(
         # 如果是针对自己的操作，且这是最后一个管理员
         if user_id == admin.id or user.role == "admin":
             count_result = await db.execute(select(func.count(User.id)).where(User.role == "admin", User.is_active))
-            last_admin_count = count_result.scalar()
+            last_admin_count: int = count_result.scalar() or 0
             # 如果是最后一个活跃管理员
             if user.id == admin.id and last_admin_count <= 1:
                 if req.role == "user" or req.is_active is False:
@@ -172,22 +172,20 @@ async def delete_user(
     # 检查是否是最后一个管理员
     if user.role == "admin":
         count_result = await db.execute(select(func.count(User.id)).where(User.role == "admin", User.is_active))
-        if count_result.scalar() <= 1:
+        if (count_result.scalar() or 0) <= 1:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="不能删除最后一个管理员")
 
     # 级联删除相关数据
     from app.models.path import LearningPath
     from app.models.quiz import ChatMessage, ChatSession, QuizAttempt
 
+    for table in [ChatSession, QuizAttempt, NodeProgress, LearningPath]:
+        await db.execute(table.__table__.delete().where(table.user_id == user_id))  # type: ignore[attr-defined]
     await db.execute(
-        ChatMessage.__table__.delete().where(
+        ChatMessage.__table__.delete().where(  # type: ignore[attr-defined]
             ChatMessage.session_id.in_(select(ChatSession.id).where(ChatSession.user_id == user_id))
         )
     )
-    await db.execute(ChatSession.__table__.delete().where(ChatSession.user_id == user_id))
-    await db.execute(QuizAttempt.__table__.delete().where(QuizAttempt.user_id == user_id))
-    await db.execute(NodeProgress.__table__.delete().where(NodeProgress.user_id == user_id))
-    await db.execute(LearningPath.__table__.delete().where(LearningPath.user_id == user_id))
     await db.delete(user)
     await db.flush()
 

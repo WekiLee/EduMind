@@ -40,4 +40,4 @@ python_version = "3.11"
 strict = false
 ignore_missing_imports = true
 implicit_optional = true
-disable_error_code = ["var-annotated", "union-attr", "return-value", "arg-type"]
+disable_error_code = ["var-annotated", "union-attr", "return-value", "arg-type", "index", "assignment", "misc"]

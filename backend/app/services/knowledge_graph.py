@@ -103,7 +103,7 @@ class KnowledgeGraphService:
                     break
             else:
                 node_data["module_name"] = "默认模块"
-                node_data["module_order"] = 99
+                node_data["module_order"] = "99"
 
             node_id = await self.create_node(node_data, path_id)
             title_to_id[node_data["title"]] = node_id
