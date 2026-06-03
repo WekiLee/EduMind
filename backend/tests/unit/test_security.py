@@ -1,6 +1,6 @@
 """Security 单元测试 —— JWT + 密码哈希"""
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from app.core.config import settings
 from app.core.security import (
@@ -58,8 +58,8 @@ class TestJWT:
         expired = jose_jwt.encode(
             {
                 "sub": "user-1",
-                "exp": datetime.now(datetime.UTC) - timedelta(hours=1),
-                "iat": datetime.now(datetime.UTC) - timedelta(hours=2),
+                "exp": datetime.now(timezone.utc) - timedelta(hours=1),
+                "iat": datetime.now(timezone.utc) - timedelta(hours=2),
             },
             settings.jwt_secret,
             algorithm=settings.jwt_algorithm,

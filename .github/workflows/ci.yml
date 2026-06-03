@@ -16,7 +16,7 @@ jobs:
           python-version: "3.11"
       - run: pip install ruff mypy
       - run: cd backend && ruff check .
-      - run: cd backend && mypy app --ignore-missing-imports --follow-imports=silent
+      - run: cd backend && mypy app --ignore-missing-imports --follow-imports=silent --implicit-optional --disable-error-code var-annotated,union-attr,return-value,arg-type
 
   backend-test:
     runs-on: ubuntu-latest

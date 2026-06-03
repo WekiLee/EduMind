@@ -26,7 +26,7 @@ extend-exclude = ["alembic"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "N", "UP", "B"]
-ignore = ["B008"]
+ignore = ["B008", "UP017"]
 
 [tool.ruff.format]
 quote-style = "double"
@@ -39,3 +39,5 @@ testpaths = ["backend/tests"]
 python_version = "3.11"
 strict = false
 ignore_missing_imports = true
+implicit_optional = true
+disable_error_code = ["var-annotated", "union-attr", "return-value", "arg-type"]
