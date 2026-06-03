@@ -37,35 +37,127 @@ async def get_path_progress(
     )
     progress_list = [np.to_dict() for np in result.scalars().all()]
 
-    # 计算进度
-    progress = AssessmentService.calculate_overall_progress(progress_list)
+    # syllabus 中的总节点数
+    syllabus_total = sum(len(m.get("node_ids", [])) for m in (path.syllabus or []))
+    completed_count = sum(1 for p in progress_list if p.get("status") == "completed")
+    total_mastery = sum(p.get("mastery", 0.0) or 0.0 for p in progress_list)
+
+    progress = {
+        "total_nodes": syllabus_total,
+        "completed_nodes": completed_count,
+        "progress_pct": round(completed_count / syllabus_total * 100, 1) if syllabus_total > 0 else 0,
+        "overall_mastery": round(total_mastery / syllabus_total, 2) if syllabus_total > 0 else 0,
+    }
 
     # 模块级别进度
     syllabus = path.syllabus or []
     module_progress = []
     for module in syllabus:
         module_node_ids = module.get("node_ids", [])
+        total_in_module = len(module_node_ids)
         module_progress_list = [p for p in progress_list if p["node_id"] in module_node_ids]
-        mp = AssessmentService.calculate_overall_progress(module_progress_list)
+        completed_in_module = sum(1 for p in module_progress_list if p.get("status") == "completed")
+        mastery_sum = sum(p.get("mastery", 0.0) or 0.0 for p in module_progress_list)
         module_progress.append({
             "module_name": module.get("module_name", ""),
-            "total_nodes": mp["total_nodes"],
-            "completed_nodes": mp["completed_nodes"],
-            "mastery": mp["overall_mastery"],
+            "total_nodes": total_in_module,
+            "completed_nodes": completed_in_module,
+            "mastery": round(mastery_sum / total_in_module, 2) if total_in_module > 0 else 0,
         })
 
     # 需要复习的节点
     now = datetime.now(timezone.utc)
-    review_due = [
-        p for p in progress_list
-        if p.get("next_review") and p["next_review"] <= now
-    ]
+    review_due = []
+    for p in progress_list:
+        nr = p.get("next_review")
+        if nr:
+            if isinstance(nr, str):
+                try:
+                    nr_dt = datetime.fromisoformat(nr)
+                except ValueError:
+                    continue
+            else:
+                nr_dt = nr
+            if nr_dt <= now:
+                review_due.append(p)
 
     return {
         "data": {
             **progress,
             "module_progress": module_progress,
             "review_due": review_due[:10],
+        }
+    }
+
+
+@path_progress_router.get("/{path_id}/report")
+async def get_learning_report(
+    path_id: str,
+    user_id: str = Depends(get_current_user_id),
+    db: AsyncSession = Depends(get_db),
+):
+    """学习报告（掌握度热力图 + 薄弱节点 + 时间统计）"""
+    result = await db.execute(
+        select(LearningPath).where(LearningPath.id == path_id, LearningPath.user_id == user_id)
+    )
+    path = result.scalar_one_or_none()
+    if not path:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="学习路径不存在")
+
+    # 节点进度
+    result = await db.execute(
+        select(NodeProgress).where(NodeProgress.path_id == path_id, NodeProgress.user_id == user_id)
+    )
+    progress_list = [np.to_dict() for np in result.scalars().all()]
+
+    # 模块掌握度
+    syllabus = path.syllabus or []
+    module_mastery = []
+    for module in syllabus:
+        module_node_ids = module.get("node_ids", [])
+        mp_list = [p for p in progress_list if p["node_id"] in module_node_ids]
+        total = len(mp_list)
+        avg_mastery = sum(p.get("mastery", 0) or 0 for p in mp_list) / total if total > 0 else 0
+        module_mastery.append({
+            "module_name": module.get("module_name", ""),
+            "total_nodes": total,
+            "completed": sum(1 for p in mp_list if p.get("status") == "completed"),
+            "avg_mastery": round(avg_mastery, 2),
+        })
+
+    # 薄弱节点（掌握度 < 0.5）
+    weak_nodes = [p for p in progress_list if (p.get("mastery", 0) or 0) < 0.5 and p.get("mastery", 0) > 0]
+
+    # 时间统计（从 quiz_attempts 表获取）
+    from app.models.quiz import QuizAttempt
+    quiz_result = await db.execute(
+        select(QuizAttempt).where(
+            QuizAttempt.user_id == user_id,
+            QuizAttempt.path_id == path_id,
+        ).order_by(QuizAttempt.created_at)
+    )
+    attempts = quiz_result.scalars().all()
+    quiz_history = [
+        {
+            "node_id": a.node_id,
+            "score": a.score,
+            "created_at": a.created_at.isoformat() if a.created_at else None,
+        }
+        for a in attempts
+    ]
+
+    # 整体掌握度（从 syllabus 总节点数计算）
+    syllabus_total = sum(len(m.get("node_ids", [])) for m in syllabus)
+    total_mastery = sum(p.get("mastery", 0) or 0 for p in progress_list)
+    overall_mastery = round(total_mastery / syllabus_total, 2) if syllabus_total > 0 else 0
+
+    return {
+        "data": {
+            "module_mastery": module_mastery,
+            "weak_nodes": weak_nodes[:10],
+            "quiz_history": quiz_history,
+            "total_quizzes": len(attempts),
+            "overall_mastery": overall_mastery,
         }
     }
 

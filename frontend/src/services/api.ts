@@ -84,12 +84,6 @@ export function sendExtensionRequest(nodeId: string, direction = 'related') {
   }
 }
 
-export function requestQuiz(nodeId: string) {
-  if (ws?.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify({ type: 'request_quiz', node_id: nodeId }));
-  }
-}
-
 export function closeChatWS() {
   ws?.close();
   ws = null;

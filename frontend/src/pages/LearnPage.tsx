@@ -3,7 +3,8 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { api } from '../services/api';
 import { connectChatWS, sendChatMessage, sendExtensionRequest, closeChatWS } from '../services/api';
 import { useLearningStore } from '../stores/useLearningStore';
-import { ChevronRight, MessageSquare, Brain, Send, Maximize2 } from 'lucide-react';
+import { ChevronRight, MessageSquare, Brain, Send, Maximize2, BarChart3 } from 'lucide-react';
+import GraphView from '../components/KnowledgeGraph/GraphView';
 
 interface QuizQuestion {
   id: string;
@@ -37,6 +38,7 @@ export default function LearnPage() {
   const [quizAnswers, setQuizAnswers] = useState<Record<string, string>>({});
   const [quizResult, setQuizResult] = useState<QuizResult | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [graphData, setGraphData] = useState<{ nodes: any[]; edges: any[] }>({ nodes: [], edges: [] });
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   // 加载路径
@@ -62,6 +64,7 @@ export default function LearnPage() {
       setQuizQuestions([]);
       setQuizAnswers({});
       setQuizResult(null);
+      setGraphData({ nodes: [], edges: [] });  // 清除旧图谱防止闪烁
 
       await api.post(`/nodes/${nodeId}/start`, {}, { params: { path_id: pathId } });
 
@@ -74,6 +77,12 @@ export default function LearnPage() {
 
       setChatLoading(true);
       sendChatMessage(nodeId, '请开始讲解这个知识点', pathId);
+
+      // 加载图谱
+      try {
+        const graphRes = await api.get(`/nodes/${nodeId}/graph`, { params: { path_id: pathId } });
+        setGraphData(graphRes.data.data);
+      } catch (_) { /* 图谱加载失败不影响主流程 */ }
     } catch (err) {
       console.error('加载节点失败', err);
     }
@@ -229,6 +238,9 @@ export default function LearnPage() {
               <button onClick={() => sendExtensionRequest(currentNode.id)} className="flex items-center gap-1 text-gray-500 px-3 py-2 rounded-lg text-sm hover:bg-gray-100">
                 <Brain size={16} /> 延伸
               </button>
+              <button onClick={() => navigate(`/report/${pathId}`)} className="flex items-center gap-1 text-gray-500 px-3 py-2 rounded-lg text-sm hover:bg-gray-100">
+                <BarChart3 size={16} /> 报告
+              </button>
             </div>
           </div>
         )}
@@ -361,12 +373,29 @@ export default function LearnPage() {
 
       {/* 图谱面板 */}
       {showGraph && (
-        <div className="w-72 border-l border-gray-200 bg-white p-3">
-          <div className="flex items-center justify-between mb-2">
+        <div className="w-80 border-l border-gray-200 bg-white flex flex-col">
+          <div className="flex items-center justify-between p-3 border-b border-gray-100">
             <h3 className="text-sm font-medium">知识图谱</h3>
-            <button onClick={() => setShowGraph(false)} className="text-gray-400 hover:text-gray-600 text-sm">✕</button>
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-1 text-xs">
+                <span className="w-2.5 h-2.5 rounded-full bg-green-500 inline-block" />
+                <span className="text-gray-400">掌握</span>
+                <span className="w-2.5 h-2.5 rounded-full bg-yellow-500 inline-block ml-1" />
+                <span className="text-gray-400">学习中</span>
+                <span className="w-2.5 h-2.5 rounded-full bg-gray-300 inline-block ml-1" />
+                <span className="text-gray-400">未开始</span>
+              </div>
+              <button onClick={() => setShowGraph(false)} className="text-gray-400 hover:text-gray-600 text-sm">✕</button>
+            </div>
           </div>
-          <div id="graph-container" style={{ width: '100%', height: 'calc(100vh - 200px)' }} />
+          <div className="flex-1 p-2">
+            <GraphView
+              nodes={graphData.nodes || []}
+              edges={graphData.edges || []}
+              currentNodeId={currentNode?.id}
+              onNodeClick={(nid) => loadNode(nid)}
+            />
+          </div>
         </div>
       )}
     </div>

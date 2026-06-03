@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { api } from '../services/api';
 import { useLearningStore } from '../stores/useLearningStore';
 import { useAuthStore } from '../stores/useAuthStore';
-import { BookOpen, Plus, Upload, FileText, ChevronRight, Shield } from 'lucide-react';
+import { BookOpen, Plus, FileText, ChevronRight, Shield } from 'lucide-react';
 
 export default function DashboardPage() {
   const navigate = useNavigate();
@@ -13,6 +13,9 @@ export default function DashboardPage() {
   const [topic, setTopic] = useState('');
   const [domainId, setDomainId] = useState('general');
   const [creating, setCreating] = useState(false);
+  const [createMode, setCreateMode] = useState<'topic' | 'upload'>('topic');
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [uploading, setUploading] = useState(false);
 
   useEffect(() => {
     loadPaths();
@@ -28,21 +31,35 @@ export default function DashboardPage() {
   };
 
   const handleCreate = async () => {
-    if (!topic.trim()) return;
-    setCreating(true);
-    try {
-      const { data } = await api.post('/learning-paths', {
-        mode: 'topic',
-        topic,
-        domain_id: domainId,
-      });
-      setShowCreateModal(false);
-      setTopic('');
-      navigate(`/learn/${data.data.id}`);
-    } catch (err) {
-      console.error('创建失败', err);
-    } finally {
-      setCreating(false);
+    if (createMode === 'topic') {
+      if (!topic.trim()) return;
+      setCreating(true);
+      try {
+        const { data } = await api.post('/learning-paths', { mode: 'topic', topic, domain_id: domainId });
+        setShowCreateModal(false);
+        setTopic('');
+        navigate(`/learn/${data.data.id}`);
+      } catch (err) {
+        console.error('创建失败', err);
+      } finally {
+        setCreating(false);
+      }
+    } else {
+      if (!uploadFile) return;
+      setUploading(true);
+      try {
+        const formData = new FormData();
+        formData.append('file', uploadFile);
+        formData.append('domain_id', domainId);
+        const { data } = await api.post('/learning-paths/upload', formData);
+        setShowCreateModal(false);
+        setUploadFile(null);
+        navigate(`/learn/${data.data.id}`);
+      } catch (err) {
+        console.error('上传失败', err);
+      } finally {
+        setUploading(false);
+      }
     }
   };
 
@@ -53,6 +70,12 @@ export default function DashboardPage() {
       case 'completed': return 'text-blue-600 bg-blue-50';
       default: return 'text-gray-600 bg-gray-50';
     }
+  };
+
+  const resetCreateForm = () => {
+    setTopic('');
+    setUploadFile(null);
+    setCreateMode('topic');
   };
 
   return (
@@ -146,48 +169,72 @@ export default function DashboardPage() {
 
       {/* 创建弹窗 */}
       {showCreateModal && (
-        <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50" onClick={() => setShowCreateModal(false)}>
+        <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50" onClick={() => { resetCreateForm(); setShowCreateModal(false); }}>
           <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-xl" onClick={(e) => e.stopPropagation()}>
             <h2 className="text-lg font-bold mb-4">创建学习路径</h2>
 
+            {/* Tab 切换 */}
+            <div className="flex border-b border-gray-200 mb-4">
+              <button onClick={() => { setCreateMode('topic'); setUploadFile(null); }}
+                className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
+                  createMode === 'topic' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-400 hover:text-gray-600'
+                }`}>✏️ 输入主题</button>
+              <button onClick={() => { setCreateMode('upload'); setTopic(''); }}
+                className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
+                  createMode === 'upload' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-400 hover:text-gray-600'
+                }`}>📄 上传文件</button>
+            </div>
+
             <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">学习主题</label>
-                <input
-                  type="text"
-                  value={topic}
-                  onChange={(e) => setTopic(e.target.value)}
-                  placeholder="例如：Python 入门、微积分基础..."
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                />
-              </div>
+              {createMode === 'topic' ? (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">学习主题</label>
+                  <input type="text" value={topic}
+                    onChange={(e) => setTopic(e.target.value)}
+                    placeholder="例如：Python 入门、微积分基础..."
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+                </div>
+              ) : (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">选择文件</label>
+                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-indigo-400 cursor-pointer"
+                    onClick={() => document.getElementById('file-input')?.click()}>
+                    {uploadFile ? (
+                      <p className="text-sm text-indigo-600">{uploadFile.name} ({(uploadFile.size / 1024).toFixed(1)} KB)</p>
+                    ) : (
+                      <>
+                        <FileText size={32} className="mx-auto text-gray-300 mb-2" />
+                        <p className="text-sm text-gray-500">点击或拖拽上传文件</p>
+                        <p className="text-xs text-gray-400 mt-1">支持 PDF、MD、TXT</p>
+                      </>
+                    )}
+                  </div>
+                  <input id="file-input" type="file" accept=".pdf,.md,.txt"
+                    onChange={(e) => setUploadFile(e.target.files?.[0] || null)}
+                    className="hidden" />
+                </div>
+              )}
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">领域</label>
-                <select
-                  value={domainId}
-                  onChange={(e) => setDomainId(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                >
+                <select value={domainId} onChange={(e) => setDomainId(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
                   <option value="general">通用</option>
                   <option value="math">数学</option>
                   <option value="programming">编程</option>
+                  <option value="language">语言</option>
+                  <option value="history">历史</option>
+                  <option value="physics">物理</option>
                 </select>
               </div>
 
               <div className="flex gap-3 pt-2">
-                <button
-                  onClick={() => setShowCreateModal(false)}
-                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
-                >
-                  取消
-                </button>
-                <button
-                  onClick={handleCreate}
-                  disabled={!topic.trim() || creating}
-                  className="flex-1 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 disabled:opacity-50"
-                >
-                  {creating ? '创建中...' : '创建'}
+                <button onClick={() => { resetCreateForm(); setShowCreateModal(false); }}
+                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-50">取消</button>
+                <button onClick={handleCreate}
+                  disabled={creating || uploading || (createMode === 'topic' && !topic.trim()) || (createMode === 'upload' && !uploadFile)}
+                  className="flex-1 bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-indigo-700 disabled:opacity-50">
+                  {creating || uploading ? '创建中...' : '创建'}
                 </button>
               </div>
             </div>

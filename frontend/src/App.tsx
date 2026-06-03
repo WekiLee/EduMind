@@ -9,6 +9,7 @@ import SyllabusPage from './pages/SyllabusPage';
 import SettingsPage from './pages/SettingsPage';
 import AdminUsersPage from './pages/admin/UsersPage';
 import AdminConfigPage from './pages/admin/ConfigPage';
+import ReportPage from './pages/ReportPage';
 import Layout from './components/common/Layout';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -65,6 +66,7 @@ export default function App() {
         <Route path="learn/:pathId" element={<LearnPage />} />
         <Route path="learn/:pathId/syllabus" element={<SyllabusPage />} />
         <Route path="settings" element={<SettingsPage />} />
+        <Route path="report/:pathId" element={<ReportPage />} />
 
         {/* 管理员路由 */}
         <Route path="admin/users" element={<AdminRoute><AdminUsersPage /></AdminRoute>} />

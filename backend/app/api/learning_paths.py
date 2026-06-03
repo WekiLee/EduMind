@@ -109,18 +109,25 @@ async def list_learning_paths(
     )
     paths = result.scalars().all()
 
-    # 补充进度信息
+    # 补充进度信息（从 syllabus 计算总节点数，从 NodeProgress 计算已学节点数）
     paths_data = []
     for path in paths:
         pd = path.to_dict()
-        np_result = await db.execute(
-            select(func.count(NodeProgress.id), func.count().filter(NodeProgress.status == "completed"))
-            .where(NodeProgress.path_id == path.id, NodeProgress.user_id == user_id)
+        # syllabus 中的总节点数
+        syllabus_nodes = sum(len(m.get("node_ids", [])) for m in (path.syllabus or []))
+        # 已完成的节点数
+        comp_result = await db.execute(
+            select(func.count(NodeProgress.id))
+            .where(
+                NodeProgress.path_id == path.id,
+                NodeProgress.user_id == user_id,
+                NodeProgress.status == "completed",
+            )
         )
-        total_nodes, completed_nodes = np_result.one()
-        pd["node_count"] = total_nodes
+        completed_nodes = comp_result.scalar() or 0
+        pd["node_count"] = syllabus_nodes
         pd["completed_count"] = completed_nodes
-        pd["progress"] = round(completed_nodes / total_nodes, 2) if total_nodes > 0 else 0
+        pd["progress"] = round(completed_nodes / syllabus_nodes, 2) if syllabus_nodes > 0 else 0
         paths_data.append(pd)
 
     return {"data": paths_data, "total": total, "page": page, "size": size}

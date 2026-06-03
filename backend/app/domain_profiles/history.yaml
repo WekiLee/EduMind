@@ -1,0 +1,43 @@
+domain:
+  id: "history"
+  name: "历史"
+  aliases: ["历史", "history"]
+
+  graph_structure:
+    type: "network"
+    allow_skip: true
+    allow_parallel: true
+
+  content_format:
+    card_template: "history_card"
+    supports:
+      - "timeline"
+      - "map"
+    examples_required: false
+
+  pedagogy:
+    strategy: "narrative_discussion"
+    steps_per_node:
+      - "tell_story"
+      - "explain_causality"
+      - "multi_perspective"
+      - "discuss"
+      - "assess"
+    dialogue_style: "socratic"
+
+  assessment:
+    types:
+      - "multiple_choice"
+      - "free_response"
+    passing_mastery: 0.6
+    allow_retake: true
+
+  prompt_overrides:
+    teach_concept: |
+      你是一位历史教师。请用讲故事的方式讲解：
+      - 先说事件经过，再分析因果关系
+      - 提供多视角解读（不同学派观点）
+      - 引导学生思考"如果...会怎样"
+    generate_quiz: |
+      请根据以下历史知识点生成 2 道选择题和 1 道简答题。
+      简答题需要学生分析因果关系。

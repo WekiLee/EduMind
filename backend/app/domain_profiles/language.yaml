@@ -1,0 +1,45 @@
+domain:
+  id: "language"
+  name: "语言学习"
+  aliases: ["语言", "language", "英语", "日语"]
+
+  graph_structure:
+    type: "spiral"
+    allow_skip: true
+    allow_parallel: true
+
+  content_format:
+    card_template: "language_card"
+    supports:
+      - "audio_pronunciation"
+      - "dialogue"
+    examples_required: true
+
+  pedagogy:
+    strategy: "input_output"
+    steps_per_node:
+      - "present_material"
+      - "comprehension_check"
+      - "pronunciation_drill"
+      - "production_practice"
+      - "assess"
+    dialogue_style: "supportive"
+
+  assessment:
+    types:
+      - "multiple_choice"
+      - "fill_blank"
+    passing_mastery: 0.7
+    allow_retake: true
+
+  prompt_overrides:
+    teach_concept: |
+      你是一位语言教师。请用目标语言和中文混合讲解。
+      - 新词汇要标注音标和中文释义
+      - 每个新语法点给出3个生活例句
+      - 讲解完后鼓励学生尝试造句
+    generate_quiz: |
+      请根据以下语言知识点生成 3 道题目：
+      - 至少 1 道选择题
+      - 至少 1 道填空题
+      - 考查词汇或语法理解

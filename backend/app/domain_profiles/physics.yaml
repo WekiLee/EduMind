@@ -1,0 +1,44 @@
+domain:
+  id: "physics"
+  name: "物理"
+  aliases: ["物理", "physics"]
+
+  graph_structure:
+    type: "strict_dag"
+    allow_skip: false
+    allow_parallel: false
+
+  content_format:
+    card_template: "math_card"
+    supports:
+      - "latex_formula"
+      - "plot_2d"
+    examples_required: true
+
+  pedagogy:
+    strategy: "concept_experiment"
+    steps_per_node:
+      - "introduce_phenomenon"
+      - "explain_theory"
+      - "show_formula"
+      - "thought_experiment"
+      - "assess"
+    dialogue_style: "socratic"
+
+  assessment:
+    types:
+      - "multiple_choice"
+      - "step_solution"
+    passing_mastery: 0.75
+    allow_retake: true
+
+  prompt_overrides:
+    teach_concept: |
+      你是一位物理教师。请用以下方式讲解：
+      - 先从日常现象引入（如"为什么苹果会落地"）
+      - 再讲物理原理和公式（用 $$...$$ 包裹）
+      - 做思想实验帮助理解抽象概念
+      - 最后出一道相关计算题
+    generate_quiz: |
+      请根据以下物理知识点生成 2 道选择题和 1 道计算题。
+      计算题需要给出分步解答思路。
