@@ -45,6 +45,7 @@ export default function LearnPage() {
   const [submitting, setSubmitting] = useState(false);
   const [graphData, setGraphData] = useState<{ nodes: any[]; edges: any[] }>({ nodes: [], edges: [] });
   const [isRecording, setIsRecording] = useState(false);
+  const [quizGenerating, setQuizGenerating] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   // 加载路径（切换路径时先清空旧数据）
@@ -118,6 +119,7 @@ export default function LearnPage() {
   // 生成测验
   const handleComplete = async () => {
     if (!currentNode) return;
+    setQuizGenerating(true);
     try {
       const { data } = await api.post(`/nodes/${currentNode.id}/quiz`);
       setQuizQuestions(data.data.questions);
@@ -125,6 +127,8 @@ export default function LearnPage() {
       setQuizResult(null);
     } catch (err) {
       console.error('生成测验失败', err);
+    } finally {
+      setQuizGenerating(false);
     }
   };
 
@@ -237,6 +241,7 @@ export default function LearnPage() {
                 >
                   {node.status === 'completed' && node.mastery < 0.8 && '⚠️ '}
                   {node.status === 'completed' && node.mastery >= 0.8 && '✅ '}
+                  {node.status === 'learning' && '📖 '}
                   {node.id === currentNode?.id && '▶ '}
                   {node.title || node.id.substring(0, 8)}
                 </button>
@@ -270,7 +275,12 @@ export default function LearnPage() {
         )}
 
         {/* Quiz 面板 */}
-        {quizQuestions.length > 0 && (
+        {quizGenerating ? (
+          <div className="p-4 border-b border-gray-200 bg-white flex items-center justify-center gap-2 text-gray-400 text-sm">
+            <span className="w-4 h-4 border-2 border-indigo-300 border-t-indigo-600 rounded-full animate-spin" />
+            正在生成题目...
+          </div>
+        ) : quizQuestions.length > 0 && (
           <div className="p-4 border-b border-gray-200 bg-white">
             <h3 className="font-medium mb-3">📝 知识测验</h3>
             <div className="space-y-4">

@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { api } from '../services/api';
 import { useLearningStore } from '../stores/useLearningStore';
 import { useAuthStore } from '../stores/useAuthStore';
-import { BookOpen, Plus, FileText, ChevronRight, Shield } from 'lucide-react';
+import { BookOpen, Plus, FileText, ChevronRight, Shield, Search } from 'lucide-react';
+import { LoadingSpinner, EmptyState, ErrorBanner } from '../components/common';
 
 export default function DashboardPage() {
   const navigate = useNavigate();
@@ -13,50 +14,60 @@ export default function DashboardPage() {
   const [topic, setTopic] = useState('');
   const [domainId, setDomainId] = useState('general');
   const [creating, setCreating] = useState(false);
-  const [createMode, setCreateMode] = useState<'topic' | 'upload'>('topic');
+  const [createMode, setCreateMode] = useState<'topic' | 'search' | 'upload'>('topic');
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [dragOver, setDragOver] = useState(false);
   const [reviewDue, setReviewDue] = useState<{ node_id: string; path_id: string; path_topic: string; mastery: number }[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
   useEffect(() => {
     loadPaths();
   }, []);
 
   const loadPaths = async () => {
+    setLoading(true);
+    setError('');
     try {
       const { data } = await api.get('/learning-paths');
       setPaths(data.data);
 
-      // 加载待复习节点
-      const due: typeof reviewDue = [];
-      for (const p of data.data) {
+      // 并行加载待复习节点（取代串行）
+      const duePromises = data.data.map(async (p: any) => {
         try {
           const prog = await api.get(`/learning-paths/${p.id}/progress`);
           const reviewItems = prog.data.data.review_due || [];
-          for (const item of reviewItems) {
-            due.push({ node_id: item.node_id, path_id: p.id, path_topic: p.topic, mastery: item.mastery || 0 });
-          }
-        } catch (_) { /* */ }
-      }
-      setReviewDue(due.slice(0, 10));
-    } catch (err) {
+          return reviewItems.map((item: any) => ({
+            node_id: item.node_id, path_id: p.id, path_topic: p.topic, mastery: item.mastery || 0,
+          }));
+        } catch {
+          return [];
+        }
+      });
+      const dueArrays = await Promise.all(duePromises);
+      setReviewDue(dueArrays.flat().slice(0, 10));
+    } catch (err: any) {
+      setError(err.response?.data?.detail || '加载学习路径失败');
       console.error('加载学习路径失败', err);
+    } finally {
+      setLoading(false);
     }
   };
 
   const handleCreate = async () => {
-    if (createMode === 'topic') {
+    if (createMode === 'topic' || createMode === 'search') {
       if (!topic.trim()) return;
       setCreating(true);
       try {
-        const { data } = await api.post('/learning-paths', { mode: 'topic', topic, domain_id: domainId });
+        const endpoint = createMode === 'search' ? '/learning-paths/with-search' : '/learning-paths';
+        const { data } = await api.post(endpoint, { mode: createMode, topic, domain_id: domainId });
         setShowCreateModal(false);
         setTopic('');
         navigate(`/learn/${data.data.id}`);
-      } catch (err) {
-        console.error('创建失败', err);
+      } catch (err: any) {
+        setError(err.response?.data?.detail || '创建失败');
       } finally {
         setCreating(false);
       }
@@ -76,8 +87,8 @@ export default function DashboardPage() {
         setShowCreateModal(false);
         setUploadFile(null);
         navigate(`/learn/${data.data.id}`);
-      } catch (err) {
-        console.error('上传失败', err);
+      } catch (err: any) {
+        setError(err.response?.data?.detail || '上传失败');
       } finally {
         setUploading(false);
         setUploadProgress(0);
@@ -111,40 +122,34 @@ export default function DashboardPage() {
           </div>
           <p className="text-yellow-700 text-sm mb-4">
             当前账号为管理员，仅用于管理用户和系统配置，无法创建学习路径。
-            如需学习，请使用普通用户账号登录。
           </p>
           <div className="flex gap-3">
             <button onClick={() => navigate('/admin/users')}
-              className="bg-yellow-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-yellow-700">
-              用户管理
-            </button>
+              className="bg-yellow-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-yellow-700">用户管理</button>
             <button onClick={() => navigate('/admin/config')}
-              className="bg-white text-yellow-700 border border-yellow-300 px-4 py-2 rounded-lg text-sm hover:bg-yellow-50">
-              系统配置
-            </button>
+              className="bg-white text-yellow-700 border border-yellow-300 px-4 py-2 rounded-lg text-sm hover:bg-yellow-50">系统配置</button>
           </div>
         </div>
       ) : (
         <>
-          {/* 头部 */}
           <div className="flex items-center justify-between mb-8">
             <div>
               <h1 className="text-2xl font-bold">我的学习</h1>
               <p className="text-gray-400 text-sm mt-1">管理和追踪你的学习路径</p>
             </div>
-            <button
-              onClick={() => setShowCreateModal(true)}
-              className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700"
-            >
-              <Plus size={18} />
-              新建学习
+            <button onClick={() => setShowCreateModal(true)}
+              className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition-colors">
+              <Plus size={18} /> 新建学习
             </button>
           </div>
         </>
       )}
 
+      {/* 错误提示 */}
+      {error && <ErrorBanner message={error} onRetry={loadPaths} />}
+
       {/* 待复习提醒 */}
-      {reviewDue.length > 0 && (
+      {reviewDue.length > 0 && !loading && (
         <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 mb-4">
           <div className="flex items-center gap-2 mb-2">
             <span className="text-orange-500 text-lg">📚</span>
@@ -161,21 +166,16 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* 学习路径列表 */}
-      {paths.length === 0 ? (
-        <div className="text-center py-20">
-          <BookOpen size={48} className="mx-auto text-gray-300 mb-4" />
-          <h3 className="text-lg font-medium text-gray-500">还没有学习路径</h3>
-          <p className="text-gray-400 text-sm mt-1">点击上方按钮创建你的第一个学习路径</p>
-        </div>
+      {/* 加载态 */}
+      {loading ? (
+        <LoadingSpinner text="加载学习路径..." />
+      ) : paths.length === 0 ? (
+        <EmptyState icon="📖" title="还没有学习路径" description="点击上方按钮创建你的第一个学习路径" />
       ) : (
         <div className="grid gap-4">
           {paths.map((path) => (
-            <div
-              key={path.id}
-              onClick={() => navigate(`/learn/${path.id}`)}
-              className="bg-white rounded-xl p-5 border border-gray-100 hover:shadow-md cursor-pointer transition-shadow flex items-center justify-between"
-            >
+            <div key={path.id} onClick={() => navigate(`/learn/${path.id}`)}
+              className="bg-white rounded-xl p-5 border border-gray-100 hover:shadow-md cursor-pointer transition-shadow flex items-center justify-between group">
               <div className="flex-1">
                 <div className="flex items-center gap-2 mb-2">
                   <h3 className="font-medium">{path.topic}</h3>
@@ -183,25 +183,17 @@ export default function DashboardPage() {
                     {path.status === 'active' ? '学习中' : path.status === 'completed' ? '已完成' : '处理中'}
                   </span>
                   {path.domain_id && (
-                    <span className="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">
-                      {path.domain_id}
-                    </span>
+                    <span className="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">{path.domain_id}</span>
                   )}
                 </div>
-                {/* 进度条 */}
                 <div className="flex items-center gap-3">
                   <div className="flex-1 bg-gray-100 rounded-full h-2">
-                    <div
-                      className="bg-indigo-500 h-2 rounded-full transition-all"
-                      style={{ width: `${(path.progress || 0) * 100}%` }}
-                    />
+                    <div className="bg-indigo-500 h-2 rounded-full transition-all" style={{ width: `${(path.progress || 0) * 100}%` }} />
                   </div>
-                  <span className="text-xs text-gray-400">
-                    {path.completed_count || 0}/{path.node_count || 0}
-                  </span>
+                  <span className="text-xs text-gray-400">{path.completed_count || 0}/{path.node_count || 0}</span>
                 </div>
               </div>
-              <ChevronRight size={20} className="text-gray-300 ml-4" />
+              <ChevronRight size={20} className="text-gray-300 ml-4 group-hover:text-gray-500 transition-colors" />
             </div>
           ))}
         </div>
@@ -213,39 +205,42 @@ export default function DashboardPage() {
           <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-xl" onClick={(e) => e.stopPropagation()}>
             <h2 className="text-lg font-bold mb-4">创建学习路径</h2>
 
-            {/* Tab 切换 */}
             <div className="flex border-b border-gray-200 mb-4">
               <button onClick={() => { setCreateMode('topic'); setUploadFile(null); }}
                 disabled={creating || uploading}
-                className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
-                  createMode === 'topic' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-400 hover:text-gray-600'
-                } disabled:opacity-30 disabled:cursor-not-allowed`}>✏️ 输入主题</button>
+                className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${createMode === 'topic' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-400 hover:text-gray-600'} disabled:opacity-30`}>
+                ✏️ 输入主题</button>
+              <button onClick={() => { setCreateMode('search'); setUploadFile(null); }}
+                disabled={creating || uploading}
+                className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${createMode === 'search' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-400 hover:text-gray-600'} disabled:opacity-30`}>
+                🔍 搜索增强</button>
               <button onClick={() => { setCreateMode('upload'); setTopic(''); }}
                 disabled={creating || uploading}
-                className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
-                  createMode === 'upload' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-400 hover:text-gray-600'
-                } disabled:opacity-30 disabled:cursor-not-allowed`}>📄 上传文件</button>
+                className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${createMode === 'upload' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-400 hover:text-gray-600'} disabled:opacity-30`}>
+                📄 上传文件</button>
             </div>
 
             <div className="space-y-4">
-              {createMode === 'topic' ? (
+              {createMode !== 'upload' ? (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">学习主题</label>
                   <input type="text" value={topic}
                     onChange={(e) => setTopic(e.target.value)}
-                    placeholder="例如：Python 入门、微积分基础..."
+                    placeholder={createMode === 'search' ? '搜索增强将自动查找网络资料补充内容...' : '例如：Python 入门、微积分基础...'}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+                  {createMode === 'search' && (
+                    <p className="text-xs text-gray-400 mt-1 flex items-center gap-1">
+                      <Search size={12} /> 将通过 DuckDuckGo 搜索相关主题并交叉验证
+                    </p>
+                  )}
                 </div>
               ) : (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">选择文件</label>
-                  <div
-                    onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+                  <div onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
                     onDragLeave={() => setDragOver(false)}
                     onDrop={(e) => { e.preventDefault(); setDragOver(false); setUploadFile(e.dataTransfer.files[0] || null); }}
-                    className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors ${
-                      dragOver ? 'border-indigo-500 bg-indigo-50' : 'border-gray-300 hover:border-indigo-400'
-                    } cursor-pointer`}
+                    className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors ${dragOver ? 'border-indigo-500 bg-indigo-50' : 'border-gray-300 hover:border-indigo-400'} cursor-pointer`}
                     onClick={() => document.getElementById('file-input')?.click()}>
                     {uploadFile ? (
                       <p className="text-sm text-indigo-600">{uploadFile.name} ({(uploadFile.size / 1024).toFixed(1)} KB)</p>
@@ -257,18 +252,16 @@ export default function DashboardPage() {
                       </>
                     )}
                     {uploading && uploadProgress > 0 && (
-                    <div className="mt-2">
-                      <div className="bg-gray-200 rounded-full h-2">
-                        <div className="bg-indigo-500 h-2 rounded-full transition-all" style={{ width: `${uploadProgress}%` }} />
+                      <div className="mt-2">
+                        <div className="bg-gray-200 rounded-full h-2">
+                          <div className="bg-indigo-500 h-2 rounded-full transition-all" style={{ width: `${uploadProgress}%` }} />
+                        </div>
+                        <p className="text-xs text-gray-400 mt-1">上传中 {uploadProgress}%</p>
                       </div>
-                      <p className="text-xs text-gray-400 mt-1">上传中 {uploadProgress}%</p>
-                    </div>
-                  )}
-                </div>
+                    )}
+                  </div>
                   <input id="file-input" type="file" accept=".pdf,.docx,.md,.txt"
-                    onDragOver={(e) => e.preventDefault()}
-                    onChange={(e) => setUploadFile(e.target.files?.[0] || null)}
-                    className="hidden" />
+                    onChange={(e) => setUploadFile(e.target.files?.[0] || null)} className="hidden" />
                 </div>
               )}
 
@@ -290,9 +283,9 @@ export default function DashboardPage() {
               <div className="flex gap-3 pt-2">
                 <button onClick={() => { resetCreateForm(); setShowCreateModal(false); }}
                   disabled={creating || uploading}
-                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed">取消</button>
+                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-50 disabled:opacity-30">取消</button>
                 <button onClick={handleCreate}
-                  disabled={creating || uploading || (createMode === 'topic' && !topic.trim()) || (createMode === 'upload' && !uploadFile)}
+                  disabled={creating || uploading || (createMode !== 'upload' && !topic.trim()) || (createMode === 'upload' && !uploadFile)}
                   className="flex-1 bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-indigo-700 disabled:opacity-50">
                   {creating || uploading ? '创建中...' : '创建'}
                 </button>
