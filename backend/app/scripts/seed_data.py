@@ -19,17 +19,13 @@ async def seed():
         user = result.scalar_one_or_none()
 
         if not user:
+            from app.services.learner_profile import DEFAULT_LEARNER_PROFILE
+
             user = User(
                 name="测试用户",
                 email="test@example.com",
                 password_hash=hash_password("123456"),
-                learner_profile={
-                    "abstraction_level": 0.5,
-                    "analogy_density": 0.5,
-                    "teaching_speed": 0.5,
-                    "feedback_tone": 0.5,
-                    "quiz_style": 0.5,
-                },
+                learner_profile=DEFAULT_LEARNER_PROFILE,
             )
             db.add(user)
             await db.flush()

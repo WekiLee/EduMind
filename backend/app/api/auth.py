@@ -14,6 +14,7 @@ from app.core.security import (
 )
 from app.models.system_config import SystemConfig
 from app.models.user import User
+from app.services.learner_profile import DEFAULT_LEARNER_PROFILE
 
 router = APIRouter(prefix="/auth", tags=["认证"])
 
@@ -58,13 +59,7 @@ async def register(req: RegisterRequest, db: AsyncSession = Depends(get_db)):
         password_hash=hash_password(req.password),
         role=role,
         organization=req.organization,
-        learner_profile={
-            "abstraction_level": 0.5,
-            "analogy_density": 0.5,
-            "teaching_speed": 0.5,
-            "feedback_tone": 0.5,
-            "quiz_style": 0.5,
-        },
+        learner_profile=DEFAULT_LEARNER_PROFILE,
     )
     db.add(user)
     await db.flush()

@@ -79,22 +79,19 @@ async def chat_websocket(websocket: WebSocket, token: str):
     learner_profile = None
     try:
         from app.models.user import User
+        from app.services.learner_profile import normalize as normalize_profile
+
         async with async_session_factory() as db:
             user_result = await db.execute(select(User).where(User.id == user_id))
             user = user_result.scalar_one_or_none()
-            if user and user.learner_profile:
-                lp = user.learner_profile
-                if isinstance(lp, dict) and any(k in lp for k in ("abstraction_level", "analogy_density")):
-                    learner_profile = lp
+            if user:
+                learner_profile = normalize_profile(user.learner_profile)
     except Exception:
         pass
     if learner_profile is None:
-        learner_profile = {
-            "abstraction_level": 0.5,
-            "analogy_density": 0.5,
-            "teaching_speed": 0.5,
-            "feedback_tone": 0.5,
-        }
+        from app.services.learner_profile import DEFAULT_LEARNER_PROFILE
+
+        learner_profile = dict(DEFAULT_LEARNER_PROFILE)
 
     session_id = ""
     current_node_id = ""

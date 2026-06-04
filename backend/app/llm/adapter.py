@@ -502,12 +502,16 @@ class LLMAdapter:
 
     @staticmethod
     def _learner_to_instruction(profile: dict) -> str:
-        """将 Learner Profile 转为自然语言教学指令"""
+        """将 Learner Profile 转为自然语言教学指令（支持嵌套/扁平格式）"""
+        from app.services.learner_profile import normalize, read
+
+        norm = normalize(profile)
         parts = []
-        abstraction = profile.get("abstraction_level", 0.5)
-        analogy = profile.get("analogy_density", 0.5)
-        speed = profile.get("teaching_speed", 0.5)
-        feedback = profile.get("feedback_tone", 0.5)
+
+        # ── content ──
+        abstraction = read(norm, "content", "abstraction_level")
+        analogy = read(norm, "content", "analogy_density")
+        example_style = read(norm, "content", "example_style")
 
         if abstraction < 0.3:
             parts.append("尽量用具体事物举例，避免抽象概念")
@@ -519,15 +523,65 @@ class LLMAdapter:
         elif analogy < 0.3:
             parts.append("少用比喻，直接讲本质")
 
+        if example_style < 0.3:
+            parts.append("举例尽量贴近日常生活")
+        elif example_style > 0.7:
+            parts.append("举例可以偏向专业领域")
+
+        # ── pace ──
+        speed = read(norm, "pace", "teaching_speed")
+        session_duration = read(norm, "pace", "session_duration_min")
+        repetition = read(norm, "pace", "repetition_preference")
+
         if speed < 0.3:
             parts.append("请放慢语速，每讲完一个点确认是否理解")
         elif speed > 0.7:
             parts.append("保持简洁高效，快速推进")
 
+        if session_duration:
+            parts.append(f"建议单次学习时长控制在 {int(session_duration)} 分钟左右")
+
+        if repetition > 0.7:
+            parts.append("重要概念请适度重复加深印象")
+        elif repetition < 0.3:
+            parts.append("不需要重复，讲一遍即可")
+
+        # ── interaction ──
+        feedback = read(norm, "interaction", "feedback_tone")
+        error_handling = read(norm, "interaction", "error_handling")
+        interrupt = read(norm, "interaction", "interrupt_policy",)
+
         if feedback < 0.3:
             parts.append("反馈以鼓励为主，错误时先引导学生自己思考")
         else:
             parts.append("反馈直接明确，错误时直接指出")
+
+        if error_handling < 0.3:
+            parts.append("学生答错时先给出提示引导，不直接公布答案")
+        else:
+            parts.append("学生答错时直接指出正确答案并解释原因")
+
+        if interrupt and interrupt != "anytime":
+            parts.append("请等学生把一段话说完再回应，不要中途打断")
+
+        # ── assessment ──
+        quiz_style = read(norm, "assessment", "quiz_style")
+        tolerance = read(norm, "assessment", "tolerance")
+
+        if quiz_style < 0.3:
+            parts.append("出题尽量有趣，可以加入闯关或游戏化元素")
+        elif quiz_style > 0.7:
+            parts.append("出题风格按传统考试方式进行")
+
+        if tolerance > 0.6:
+            parts.append("容错率较高，答对 60% 即可通过")
+        else:
+            parts.append("要求较高，需要答对 80% 以上才算通过")
+
+        # ── ui.tts（非教学指令，但提示 AI 是否有语音场景）──
+        enable_tts = read(norm, "ui", "enable_tts")
+        if enable_tts:
+            parts.append("学生开启了语音播报模式，回答内容请保持口语化和适合朗读")
 
         if not parts:
             return ""

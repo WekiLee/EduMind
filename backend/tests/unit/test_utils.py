@@ -180,9 +180,46 @@ class TestLearnerToInstruction:
         result = LLMAdapter._learner_to_instruction({"abstraction_level": 0.1, "analogy_density": 0.5, "teaching_speed": 0.5, "feedback_tone": 0.5})
         assert "具体事物" in result
 
-    def test_empty_profile(self):
+    def test_empty_profile_uses_defaults(self):
+        """空 profile 应使用默认嵌套结构，不再返回空字符串"""
         result = LLMAdapter._learner_to_instruction({})
-        assert result == ""
+        assert "教学风格要求：" in result
+        assert "容错率较高" in result  # 默认 tolerance=0.7
+
+    def test_nested_profile(self):
+        """嵌套结构也能正确处理"""
+        result = LLMAdapter._learner_to_instruction({
+            "content": {"abstraction_level": 0.1, "analogy_density": 0.1, "example_style": 0.1},
+            "pace": {"teaching_speed": 0.1, "session_duration_min": 15, "repetition_preference": 0.1},
+        })
+        assert "具体事物" in result
+        assert "15 分钟" in result
+
+    def test_example_style_field(self):
+        """新字段 example_style 生效"""
+        low = LLMAdapter._learner_to_instruction({"content": {"example_style": 0.1}})
+        assert "日常生活" in low
+
+        high = LLMAdapter._learner_to_instruction({"content": {"example_style": 0.9}})
+        assert "专业领域" in high
+
+    def test_error_handling_field(self):
+        """新字段 error_handling 生效"""
+        guided = LLMAdapter._learner_to_instruction({"interaction": {"error_handling": 0.1}})
+        assert "提示引导" in guided
+
+        direct = LLMAdapter._learner_to_instruction({"interaction": {"error_handling": 0.9}})
+        assert "直接指出" in direct
+
+    def test_interrupt_policy_field(self):
+        """新字段 interrupt_policy 生效"""
+        result = LLMAdapter._learner_to_instruction({"interaction": {"interrupt_policy": "after_segment"}})
+        assert "不要中途打断" in result
+
+    def test_enable_tts_field(self):
+        """新字段 enable_tts 生效"""
+        result = LLMAdapter._learner_to_instruction({"ui": {"enable_tts": True}})
+        assert "语音播报" in result
 
 
 class TestParseJson:
@@ -327,3 +364,96 @@ class TestCrossValidation:
         assert result["nodes"][0]["title"] == "A"
         assert result["nodes"][0]["confidence"] == 0.8
         assert result["nodes"][0]["sources"] == ["llm_generated"]
+
+
+# ──────────────────────────────────────────
+# 学习者画像归一化
+# ──────────────────────────────────────────
+
+
+class TestLearnerProfileNormalize:
+    """learner_profile.normalize 测试"""
+
+    def test_none_returns_default(self):
+        from app.services.learner_profile import normalize
+
+        result = normalize(None)
+        assert result["content"]["abstraction_level"] == 0.5
+        assert result["pace"]["session_duration_min"] == 25
+        assert result["ui"]["enable_tts"] is False
+
+    def test_empty_dict_returns_default(self):
+        from app.services.learner_profile import normalize
+
+        result = normalize({})
+        assert result["content"]["abstraction_level"] == 0.5
+
+    def test_flat_format_migrated(self):
+        """旧版扁平格式应正确迁移"""
+        from app.services.learner_profile import normalize
+
+        result = normalize({
+            "abstraction_level": 0.3,
+            "analogy_density": 0.8,
+            "teaching_speed": 0.2,
+            "feedback_tone": 0.1,
+            "quiz_style": 0.9,
+        })
+        assert result["content"]["abstraction_level"] == 0.3
+        assert result["content"]["analogy_density"] == 0.8
+        assert result["pace"]["teaching_speed"] == 0.2
+        assert result["interaction"]["feedback_tone"] == 0.1
+        assert result["assessment"]["quiz_style"] == 0.9
+        # 未提供的字段保留默认值
+        assert result["content"]["example_style"] == 0.5
+
+    def test_nested_format_preserved(self):
+        from app.services.learner_profile import normalize
+
+        result = normalize({
+            "content": {"abstraction_level": 0.9, "analogy_density": 0.1},
+            "assessment": {"tolerance": 0.9},
+        })
+        assert result["content"]["abstraction_level"] == 0.9
+        assert result["content"]["analogy_density"] == 0.1
+        # 未提供的嵌套字段保留默认值
+        assert result["content"]["example_style"] == 0.5
+        assert result["assessment"]["tolerance"] == 0.9
+        assert result["assessment"]["quiz_style"] == 0.5
+        # 未提供的组保留默认值
+        assert result["ui"]["font_size"] == "medium"
+
+    def test_all_groups_present(self):
+        from app.services.learner_profile import normalize
+
+        result = normalize(None)
+        assert set(result.keys()) == {"content", "pace", "interaction", "assessment", "ui"}
+
+
+class TestLearnerProfileRead:
+    """learner_profile.read 测试"""
+
+    def test_read_nested_field(self):
+        from app.services.learner_profile import read
+
+        val = read({"content": {"abstraction_level": 0.9}}, "content", "abstraction_level")
+        assert val == 0.9
+
+    def test_read_flat_field(self):
+        """从扁平 profile 也能正确读取"""
+        from app.services.learner_profile import read
+
+        val = read({"abstraction_level": 0.3}, "content", "abstraction_level")
+        assert val == 0.3
+
+    def test_read_none_profile(self):
+        from app.services.learner_profile import read
+
+        val = read(None, "content", "abstraction_level")
+        assert val == 0.5
+
+    def test_read_missing_field_returns_default(self):
+        from app.services.learner_profile import read
+
+        val = read({}, "ui", "font_size")
+        assert val == "medium"
