@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { api } from '../services/api';
 import { connectChatWS, sendChatMessage, sendExtensionRequest, sendAudioMessage, closeChatWS } from '../services/api';
 import { isVoiceSupported, startRecording, stopRecording } from '../services/voice';
@@ -28,6 +28,8 @@ interface QuizResult {
 export default function LearnPage() {
   const { pathId } = useParams();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const reviewNodeId = searchParams.get('review');
   const {
     currentPath, setCurrentPath,
     currentNode, setCurrentNode,
@@ -98,7 +100,9 @@ export default function LearnPage() {
 
   useEffect(() => {
     if (firstIncompleteNode && !currentNode) {
-      loadNode(firstIncompleteNode.id);
+      // 如果有 review 参数，加载指定的复习节点；否则加载第一个未完成节点
+      const targetId = reviewNodeId || firstIncompleteNode.id;
+      loadNode(targetId);
     }
   }, [firstIncompleteNode, currentNode]);
 
@@ -123,6 +127,15 @@ export default function LearnPage() {
       console.error('生成测验失败', err);
     }
   };
+
+  // review 模式下，节点加载完毕后自动出题
+  const reviewTriggered = useRef(false);
+  useEffect(() => {
+    if (reviewNodeId && currentNode && !reviewTriggered.current) {
+      reviewTriggered.current = true;
+      setTimeout(() => handleComplete(), 1000);
+    }
+  }, [reviewNodeId, currentNode]);
 
   // 选择答案
   const selectAnswer = (questionId: string, option: string) => {
@@ -199,6 +212,12 @@ export default function LearnPage() {
     <div className="flex h-full">
       {/* 左侧：模块导航 */}
       <aside className="w-56 border-r border-gray-200 bg-white p-4 overflow-auto">
+        {reviewNodeId && (
+          <div className="bg-orange-50 border border-orange-200 rounded-lg px-3 py-2 mb-3">
+            <p className="text-xs font-medium text-orange-700">🔄 复习模式</p>
+            <p className="text-xs text-orange-500 mt-0.5">完成测验后将更新掌握度</p>
+          </div>
+        )}
         <h3 className="text-sm font-medium text-gray-400 uppercase mb-3">目录</h3>
         {currentPath?.syllabus?.map((module) => (
           <div key={module.module_name} className="mb-3">
@@ -216,7 +235,8 @@ export default function LearnPage() {
                       : 'text-gray-500 hover:bg-gray-50'
                   }`}
                 >
-                  {node.status === 'completed' && '✅ '}
+                  {node.status === 'completed' && node.mastery < 0.8 && '⚠️ '}
+                  {node.status === 'completed' && node.mastery >= 0.8 && '✅ '}
                   {node.id === currentNode?.id && '▶ '}
                   {node.title || node.id.substring(0, 8)}
                 </button>

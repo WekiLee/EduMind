@@ -1,6 +1,7 @@
 """测验 API —— 生成时缓存答题卡，提交时取缓存判卷"""
 
 import time
+from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
@@ -61,20 +62,6 @@ async def generate_quiz(
     # 返回给前端时不包含答案
     client_questions = [{k: v for k, v in q.items() if k != "answer"} for q in questions]
 
-    # 更新进度（用 limit(1) 避免跨路径时 MultipleResultsFound）
-    result = await db.execute(
-        select(NodeProgress)
-        .where(
-            NodeProgress.user_id == user_id,
-            NodeProgress.node_id == node_id,
-        )
-        .limit(1)
-    )
-    np = result.scalar_one_or_none()
-    if np:
-        np.attempt_count += 1
-    await db.flush()
-
     return {
         "data": {
             "quiz_id": node_id,
@@ -128,7 +115,7 @@ async def submit_quiz(
             answers=req.answers,
         )
 
-        # 更新掌握度
+        # 更新掌握度 + 复习计划
         np_result = await db.execute(
             select(NodeProgress).where(
                 NodeProgress.user_id == user_id,
@@ -141,6 +128,11 @@ async def submit_quiz(
             scores = list(np.quiz_scores or []) + [result["score"]]
             np.quiz_scores = scores
             np.mastery = AssessmentService.calculate_mastery(scores, np.mastery)
+            np.attempt_count += 1  # 每次测验递增复习计数
+            # 根据新掌握度重算下次复习时间
+            interval_days = AssessmentService.compute_next_review(np.mastery, np.attempt_count)
+            np.next_review = datetime.now(UTC) + timedelta(days=interval_days)
+            np.last_reviewed = datetime.now(UTC)
             if result["score"] >= 0.6:
                 result["passed"] = True
                 result["mastery_update"] = np.mastery

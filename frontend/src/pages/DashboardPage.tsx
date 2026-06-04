@@ -152,7 +152,7 @@ export default function DashboardPage() {
           </div>
           <div className="flex flex-wrap gap-2">
             {reviewDue.map((item, i) => (
-              <button key={i} onClick={() => navigate(`/learn/${item.path_id}`)}
+              <button key={i} onClick={() => navigate(`/learn/${item.path_id}?review=${item.node_id}`)}
                 className="bg-white text-xs text-orange-700 px-3 py-1.5 rounded-full border border-orange-200 hover:bg-orange-100">
                 {item.path_topic.substring(0, 12)} · {(item.mastery * 100).toFixed(0)}%
               </button>
