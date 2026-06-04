@@ -1,6 +1,7 @@
 """交叉验证服务 —— 多源内容合并 + 置信评分 + 结构化输出"""
 
 from app.llm.adapter import LLMAdapter
+from app.services.search_orchestrator import SearchResult
 
 
 class CrossValidationService:
