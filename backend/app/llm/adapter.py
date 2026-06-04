@@ -11,7 +11,7 @@ from litellm import acompletion
 litellm.request_timeout = 30  # LLM 调用超时 30 秒
 
 from app.core.config import settings
-from app.services.learner_profile import normalize as normalize_profile, read as read_profile
+from app.services.learner_profile import normalize as normalize_profile
 
 
 class LLMAdapter:
@@ -504,14 +504,17 @@ class LLMAdapter:
     @staticmethod
     def _learner_to_instruction(profile: dict) -> str:
         """将 Learner Profile 转为自然语言教学指令（支持嵌套/扁平格式）"""
-
         norm = normalize_profile(profile)
         parts = []
 
+        def _val(group: str, field: str, default=None):
+            """从已归一化的 norm 中安全读取字段"""
+            return norm.get(group, {}).get(field, default)
+
         # ── content ──
-        abstraction = read_profile(norm, "content", "abstraction_level")
-        analogy = read_profile(norm, "content", "analogy_density")
-        example_style = read_profile(norm, "content", "example_style")
+        abstraction = _val("content", "abstraction_level", 0.5)
+        analogy = _val("content", "analogy_density", 0.5)
+        example_style = _val("content", "example_style", 0.5)
 
         if abstraction < 0.3:
             parts.append("尽量用具体事物举例，避免抽象概念")
@@ -529,9 +532,9 @@ class LLMAdapter:
             parts.append("举例可以偏向专业领域")
 
         # ── pace ──
-        speed = read_profile(norm, "pace", "teaching_speed")
-        session_duration = read_profile(norm, "pace", "session_duration_min")
-        repetition = read_profile(norm, "pace", "repetition_preference")
+        speed = _val("pace", "teaching_speed", 0.5)
+        session_duration = _val("pace", "session_duration_min")
+        repetition = _val("pace", "repetition_preference", 0.5)
 
         if speed < 0.3:
             parts.append("请放慢语速，每讲完一个点确认是否理解")
@@ -547,9 +550,9 @@ class LLMAdapter:
             parts.append("不需要重复，讲一遍即可")
 
         # ── interaction ──
-        feedback = read_profile(norm, "interaction", "feedback_tone")
-        error_handling = read_profile(norm, "interaction", "error_handling")
-        interrupt = read_profile(norm, "interaction", "interrupt_policy",)
+        feedback = _val("interaction", "feedback_tone", 0.5)
+        error_handling = _val("interaction", "error_handling", 0.5)
+        interrupt = _val("interaction", "interrupt_policy")
 
         if feedback < 0.3:
             parts.append("反馈以鼓励为主，错误时先引导学生自己思考")
@@ -565,8 +568,8 @@ class LLMAdapter:
             parts.append("请等学生把一段话说完再回应，不要中途打断")
 
         # ── assessment ──
-        quiz_style = read_profile(norm, "assessment", "quiz_style")
-        tolerance = read_profile(norm, "assessment", "tolerance")
+        quiz_style = _val("assessment", "quiz_style", 0.5)
+        tolerance = _val("assessment", "tolerance", 0.7)
 
         if quiz_style < 0.3:
             parts.append("出题尽量有趣，可以加入闯关或游戏化元素")
@@ -578,8 +581,8 @@ class LLMAdapter:
         else:
             parts.append("要求较高，需要答对 80% 以上才算通过")
 
-        # ── ui.tts（非教学指令，但提示 AI 是否有语音场景）──
-        enable_tts = read_profile(norm, "ui", "enable_tts")
+        # ── ui.tts ──
+        enable_tts = _val("ui", "enable_tts")
         if enable_tts:
             parts.append("学生开启了语音播报模式，回答内容请保持口语化和适合朗读")
 
