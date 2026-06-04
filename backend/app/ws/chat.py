@@ -1,5 +1,6 @@
 """WebSocket 教学对话 —— 实时文字聊天，支持断线重连上下文恢复"""
 
+import base64
 import json
 import time
 from datetime import UTC, datetime
@@ -13,6 +14,7 @@ from app.core.security import decode_access_token
 from app.llm.adapter import LLMAdapter
 from app.models.quiz import ChatMessage, ChatSession
 from app.services.knowledge_graph import KnowledgeGraphService
+from app.services.voice import synthesize_speech, transcribe_audio
 
 router = APIRouter()
 
@@ -135,6 +137,24 @@ async def chat_websocket(websocket: WebSocket, token: str):
             data = json.loads(raw)
             msg_type = data.get("type", "message")
 
+            # ── 语音消息：ASR 识别后转为文字消息处理 ──
+            if msg_type == "audio":
+                audio_b64 = data.get("audio_data", "")
+                if audio_b64:
+                    audio_bytes = base64.b64decode(audio_b64)
+                    transcribed = await transcribe_audio(audio_bytes)
+                    if transcribed:
+                        # 将识别结果转为文字消息，走下面的文字处理流程
+                        data["type"] = "message"
+                        data["content"] = transcribed
+                        data["_from_voice"] = True
+                    else:
+                        await websocket.send_json({"type": "error", "code": "asr_failed", "message": "语音识别失败，请重试"})
+                        continue
+                else:
+                    await websocket.send_json({"type": "error", "code": "no_audio", "message": "未收到音频数据"})
+                    continue
+
             # ── 消息：开始或继续对话 ──
             if msg_type == "message":
                 content = data.get("content", "")
@@ -252,6 +272,20 @@ async def chat_websocket(websocket: WebSocket, token: str):
                     }
                 )
 
+                # 如果来自语音输入，将回答转为语音返回
+                if data.get("_from_voice"):
+                    try:
+                        audio_reply = await synthesize_speech(answer)
+                        if audio_reply:
+                            audio_b64 = base64.b64encode(audio_reply).decode()
+                            await websocket.send_json({
+                                "type": "audio_reply",
+                                "session_id": session_id,
+                                "audio_data": audio_b64,
+                            })
+                    except Exception as e:
+                        print(f"  ⚠️ TTS 合成失败（不影响文字回复）: {e}")
+
                 # 保存 AI 回答
                 await save_message(session_id, "assistant", answer)
                 chat_history.append({"role": "assistant", "content": answer})
@@ -261,10 +295,7 @@ async def chat_websocket(websocket: WebSocket, token: str):
 
                 # 更新会话消息计数
                 async with async_session_factory() as db:
-                    await db.execute(select(ChatSession).where(ChatSession.id == session_id))
-                    sess = (
-                        await db.execute(select(ChatSession).where(ChatSession.id == session_id))
-                    ).scalar_one_or_none()
+                    sess = await db.get(ChatSession, session_id)
                     if sess:
                         sess.message_count += 1
                         await db.commit()
@@ -325,7 +356,7 @@ async def chat_websocket(websocket: WebSocket, token: str):
         # 关闭时标记会话结束
         if session_id:
             async with async_session_factory() as db:
-                sess = (await db.execute(select(ChatSession).where(ChatSession.id == session_id))).scalar_one_or_none()
+                sess = await db.get(ChatSession, session_id)
                 if sess:
                     sess.ended_at = datetime.now(UTC)
                     await db.commit()

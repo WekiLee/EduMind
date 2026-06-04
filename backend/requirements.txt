@@ -20,6 +20,11 @@ python-dotenv>=1.0
 # 文档解析（可选）
 unstructured[pdf,docx,pptx,md]>=0.15
 
+# 语音
+edge-tts>=6.0
+# faster-whisper 可选（体积较大），首次使用需先安装：
+# pip install faster-whisper
+
 # 测试
 pytest>=8.0
 pytest-asyncio>=0.24

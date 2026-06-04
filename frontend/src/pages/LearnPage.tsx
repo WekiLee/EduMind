@@ -1,7 +1,8 @@
 import { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { api } from '../services/api';
-import { connectChatWS, sendChatMessage, sendExtensionRequest, closeChatWS } from '../services/api';
+import { connectChatWS, sendChatMessage, sendExtensionRequest, sendAudioMessage, closeChatWS } from '../services/api';
+import { isVoiceSupported, startRecording, stopRecording } from '../services/voice';
 import { useLearningStore } from '../stores/useLearningStore';
 import { ChevronRight, MessageSquare, Brain, Send, Maximize2, BarChart3 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
@@ -41,6 +42,7 @@ export default function LearnPage() {
   const [quizResult, setQuizResult] = useState<QuizResult | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [graphData, setGraphData] = useState<{ nodes: any[]; edges: any[] }>({ nodes: [], edges: [] });
+  const [isRecording, setIsRecording] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   // 加载路径（切换路径时先清空旧数据）
@@ -162,6 +164,28 @@ export default function LearnPage() {
         {text}
       </div>
     );
+  };
+
+  // 语音录制
+  const handleVoiceToggle = async () => {
+    if (isRecording) {
+      try {
+        const { base64 } = await stopRecording();
+        setIsRecording(false);
+        if (base64 && currentNode) {
+          addChatMessage({ id: `voice-${Date.now()}`, role: 'user', content: '🎤 [语音消息]' });
+          setChatLoading(true);
+          sendAudioMessage(base64, currentNode.id, pathId);
+        }
+      } catch (_) { /* 录音取消或失败 */ }
+    } else {
+      try {
+        await startRecording();
+        setIsRecording(true);
+      } catch (_) {
+        alert('无法访问麦克风，请检查权限设置');
+      }
+    }
   };
 
   // 继续下一节点
@@ -366,6 +390,20 @@ export default function LearnPage() {
               placeholder="输入你的问题..."
               className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
             />
+            {isVoiceSupported() && (
+              <button
+                onClick={handleVoiceToggle}
+                disabled={isChatLoading}
+                className={`px-3 py-2 rounded-lg border text-sm transition-colors ${
+                  isRecording
+                    ? 'bg-red-500 text-white border-red-500 animate-pulse'
+                    : 'bg-white text-gray-500 border-gray-300 hover:bg-gray-50'
+                } disabled:opacity-50`}
+                title={isRecording ? '点击停止录音' : '语音输入'}
+              >
+                {isRecording ? '⏹' : '🎤'}
+              </button>
+            )}
             <button
               onClick={handleSend}
               disabled={!message.trim() || isChatLoading}

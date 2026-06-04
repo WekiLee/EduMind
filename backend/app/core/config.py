@@ -32,6 +32,9 @@ class Settings(BaseSettings):
     max_upload_size_mb: int = 50
     supported_extensions: str = ".pdf,.md,.txt,.docx,.pptx"
 
+    # ── 语音 ──
+    whisper_model_size: str = "base"
+
     # ── 上下文管理 ──
     context_max_tokens: int = 4096  # 送入 LLM 的上下文最大 token 数
     context_recent_messages: int = 6  # 至少保留的最近消息数

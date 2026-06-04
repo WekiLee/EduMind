@@ -55,7 +55,8 @@ export async function connectChatWS(
   };
 
   ws.onmessage = (event) => {
-    const data = JSON.parse(event.data);
+    let data;
+    try { data = JSON.parse(event.data); } catch { return; }
     switch (data.type) {
       case 'connected':
       case 'session_ready':
@@ -69,6 +70,9 @@ export async function connectChatWS(
       case 'error':
         onError(data.message);
         break;
+      case 'audio_reply':
+        playAudioReply(data.audio_data);
+        break;
       case 'extension':
         onChunk(`\n\n--- 延伸 ---\n${data.content}`);
         break;
@@ -76,7 +80,10 @@ export async function connectChatWS(
   };
 
   ws.onclose = () => console.log('🔌 WebSocket 已断开');
-  ws.onerror = () => onError('连接错误');
+  ws.onerror = () => {
+    onError('连接错误');
+    wsReadyResolve?.();
+  };
 
   return wsReadyPromise;
 }
@@ -87,10 +94,29 @@ export function sendChatMessage(nodeId: string, content: string, pathId?: string
   }
 }
 
+export function sendAudioMessage(base64Data: string, nodeId: string, pathId?: string) {
+  if (ws?.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: 'audio', audio_data: base64Data, node_id: nodeId, path_id: pathId }));
+  }
+}
+
 export function sendExtensionRequest(nodeId: string, direction = 'related') {
   if (ws?.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify({ type: 'extend', node_id: nodeId, direction }));
   }
+}
+
+export function playAudioReply(base64Data: string) {
+  try {
+    const binary = atob(base64Data);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    const blob = new Blob([bytes], { type: 'audio/mpeg' });
+    const url = URL.createObjectURL(blob);
+    const audio = new Audio(url);
+    audio.onended = () => URL.revokeObjectURL(url);
+    audio.play().catch(() => {});
+  } catch (_) { /* 音频播放失败不影响主功能 */ }
 }
 
 export function closeChatWS() {
