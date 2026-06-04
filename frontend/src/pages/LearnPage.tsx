@@ -4,7 +4,9 @@ import { api } from '../services/api';
 import { connectChatWS, sendChatMessage, sendExtensionRequest, closeChatWS } from '../services/api';
 import { useLearningStore } from '../stores/useLearningStore';
 import { ChevronRight, MessageSquare, Brain, Send, Maximize2, BarChart3 } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
 import GraphView from '../components/KnowledgeGraph/GraphView';
+import KnowledgeCard from '../components/KnowledgeCard';
 
 interface QuizQuestion {
   id: string;
@@ -41,9 +43,13 @@ export default function LearnPage() {
   const [graphData, setGraphData] = useState<{ nodes: any[]; edges: any[] }>({ nodes: [], edges: [] });
   const chatEndRef = useRef<HTMLDivElement>(null);
 
-  // 加载路径
+  // 加载路径（切换路径时先清空旧数据）
   useEffect(() => {
     if (!pathId) return;
+    setCurrentNode(null);
+    setCurrentPath(null);
+    clearChat();
+    setGraphData({ nodes: [], edges: [] });
     api.get(`/learning-paths/${pathId}`).then(({ data }) => setCurrentPath(data.data));
     return () => { closeChatWS(); clearChat(); };
   }, [pathId]);
@@ -68,8 +74,8 @@ export default function LearnPage() {
 
       await api.post(`/nodes/${nodeId}/start`, {}, { params: { path_id: pathId } });
 
-      closeChatWS();
-      connectChatWS(
+      // 等待 WebSocket 连接就绪后再发送消息
+      await connectChatWS(
         (chunk) => appendChatChunk(chunk),
         () => setChatLoading(false),
         (err) => console.error(err)
@@ -201,33 +207,7 @@ export default function LearnPage() {
         {/* 知识卡片 */}
         {currentNode && quizQuestions.length === 0 && (
           <div className="p-4 border-b border-gray-200">
-            <div className="bg-white rounded-xl border border-gray-100 p-4">
-              <div className="flex items-center gap-2 mb-2">
-                <span className="text-xs bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded-full">{currentNode.difficulty}</span>
-                <span className="text-xs bg-gray-50 text-gray-500 px-2 py-0.5 rounded-full">{currentNode.node_type}</span>
-              </div>
-              <h2 className="text-lg font-bold mb-1">{currentNode.title}</h2>
-              <p className="text-gray-500 text-sm mb-2">{currentNode.summary}</p>
-              <div className="text-sm text-gray-700 leading-relaxed">
-                {renderContent(currentNode.content)}
-              </div>
-              {currentNode.examples && currentNode.examples.length > 0 && (
-                <div className="mt-3 pt-3 border-t border-gray-100">
-                  <p className="text-xs font-medium text-gray-500 mb-2">📎 示例</p>
-                  {currentNode.examples.map((ex: string, i: number) => (
-                    <pre key={i} className="bg-gray-900 text-green-400 p-3 rounded-lg overflow-x-auto my-1 text-xs leading-relaxed">{ex}</pre>
-                  ))}
-                </div>
-              )}
-              {currentNode.code_snippets && currentNode.code_snippets.length > 0 && (
-                <div className="mt-3 pt-3 border-t border-gray-100">
-                  <p className="text-xs font-medium text-gray-500 mb-2">💻 代码</p>
-                  {currentNode.code_snippets.map((code: string, i: number) => (
-                    <pre key={i} className="bg-gray-900 text-green-400 p-3 rounded-lg overflow-x-auto my-1 text-xs leading-relaxed">{code}</pre>
-                  ))}
-                </div>
-              )}
-            </div>
+            <KnowledgeCard node={currentNode} />
             <div className="flex items-center gap-2 mt-3">
               <button onClick={handleComplete} className="bg-green-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-green-700">
                 ✅ 完成并测验
@@ -331,14 +311,20 @@ export default function LearnPage() {
             )}
             {chatMessages.map((msg, i) => (
               <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                <div className={`max-w-[80%] rounded-xl px-4 py-2 text-sm ${
+                <div className={`max-w-[80%] rounded-xl px-4 py-2 text-sm leading-relaxed ${
                   msg.role === 'user'
                     ? 'bg-indigo-600 text-white'
                     : msg.role === 'system'
                     ? 'bg-yellow-50 text-yellow-800 border border-yellow-200'
                     : 'bg-gray-100 text-gray-800'
                 }`}>
-                  <div className="whitespace-pre-wrap">{msg.content}</div>
+                  {msg.role === 'user' ? (
+                    <div className="whitespace-pre-wrap">{msg.content}</div>
+                  ) : (
+                    <div className="markdown-content text-sm leading-relaxed">
+                      <ReactMarkdown>{msg.content}</ReactMarkdown>
+                    </div>
+                  )}
                 </div>
               </div>
             ))}

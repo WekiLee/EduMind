@@ -27,7 +27,10 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-50 to-blue-50">
       <div className="bg-white p-8 rounded-2xl shadow-lg w-full max-w-md">
-        <h1 className="text-2xl font-bold text-center mb-2">EduMind</h1>
+        <div className="flex justify-center mb-4">
+          <img src="/edu_logo.png" alt="EduMind" className="h-16 w-auto" />
+        </div>
+        <h1 className="text-2xl font-bold text-center mb-1">EduMind</h1>
         <p className="text-gray-400 text-center text-sm mb-8">智能导师系统</p>
 
         <form onSubmit={handleSubmit} className="space-y-4">

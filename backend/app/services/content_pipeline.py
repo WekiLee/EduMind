@@ -19,6 +19,10 @@ class ContentPipelineService:
 
     async def process_topic(self, user_id: str, topic: str, domain_id: str) -> LearningPath:
         """模式A：通过主题生成学习路径"""
+        # 0. 自动检测领域（如果用户未指定）
+        if not domain_id or domain_id == "auto":
+            detected = await self.llm.detect_domain(topic)
+            domain_id = detected.get("domain", "general")
         # 1. 让 LLM 生成内容（基于主题）
         knowledge = await self.llm.extract_knowledge(f"主题：{topic}", domain_id)
 

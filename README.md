@@ -1,6 +1,10 @@
 # EduMind — 智能导师系统
 
 <p align="center">
+  <img src="frontend/resources/edu_logo.png" alt="EduMind" width="120" />
+</p>
+
+<p align="center">
   <a href="https://github.com/WekiLee/EduMind/actions/workflows/ci.yml"><img src="https://github.com/WekiLee/EduMind/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL%20v3-blue.svg" alt="License: AGPL v3"></a>
   <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/python-3.11%2B-blue.svg" alt="Python 3.11+"></a>

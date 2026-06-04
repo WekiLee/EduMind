@@ -16,6 +16,7 @@ export default function DashboardPage() {
   const [createMode, setCreateMode] = useState<'topic' | 'upload'>('topic');
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [reviewDue, setReviewDue] = useState<{ node_id: string; path_id: string; path_topic: string; mastery: number }[]>([]);
 
   useEffect(() => {
     loadPaths();
@@ -25,6 +26,19 @@ export default function DashboardPage() {
     try {
       const { data } = await api.get('/learning-paths');
       setPaths(data.data);
+
+      // 加载待复习节点
+      const due: typeof reviewDue = [];
+      for (const p of data.data) {
+        try {
+          const prog = await api.get(`/learning-paths/${p.id}/progress`);
+          const reviewItems = prog.data.data.review_due || [];
+          for (const item of reviewItems) {
+            due.push({ node_id: item.node_id, path_id: p.id, path_topic: p.topic, mastery: item.mastery || 0 });
+          }
+        } catch (_) { /* */ }
+      }
+      setReviewDue(due.slice(0, 10));
     } catch (err) {
       console.error('加载学习路径失败', err);
     }
@@ -121,6 +135,24 @@ export default function DashboardPage() {
         </>
       )}
 
+      {/* 待复习提醒 */}
+      {reviewDue.length > 0 && (
+        <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 mb-4">
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-orange-500 text-lg">📚</span>
+            <h3 className="text-sm font-medium text-orange-800">待复习 {reviewDue.length} 个知识点</h3>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {reviewDue.map((item, i) => (
+              <button key={i} onClick={() => navigate(`/learn/${item.path_id}`)}
+                className="bg-white text-xs text-orange-700 px-3 py-1.5 rounded-full border border-orange-200 hover:bg-orange-100">
+                {item.path_topic.substring(0, 12)} · {(item.mastery * 100).toFixed(0)}%
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* 学习路径列表 */}
       {paths.length === 0 ? (
         <div className="text-center py-20">
@@ -176,13 +208,15 @@ export default function DashboardPage() {
             {/* Tab 切换 */}
             <div className="flex border-b border-gray-200 mb-4">
               <button onClick={() => { setCreateMode('topic'); setUploadFile(null); }}
+                disabled={creating || uploading}
                 className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
                   createMode === 'topic' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-400 hover:text-gray-600'
-                }`}>✏️ 输入主题</button>
+                } disabled:opacity-30 disabled:cursor-not-allowed`}>✏️ 输入主题</button>
               <button onClick={() => { setCreateMode('upload'); setTopic(''); }}
+                disabled={creating || uploading}
                 className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
                   createMode === 'upload' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-400 hover:text-gray-600'
-                }`}>📄 上传文件</button>
+                } disabled:opacity-30 disabled:cursor-not-allowed`}>📄 上传文件</button>
             </div>
 
             <div className="space-y-4">
@@ -219,18 +253,21 @@ export default function DashboardPage() {
                 <label className="block text-sm font-medium text-gray-700 mb-1">领域</label>
                 <select value={domainId} onChange={(e) => setDomainId(e.target.value)}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
+                  <option value="auto">🤖 自动检测</option>
                   <option value="general">通用</option>
                   <option value="math">数学</option>
                   <option value="programming">编程</option>
                   <option value="language">语言</option>
                   <option value="history">历史</option>
                   <option value="physics">物理</option>
+                  <option value="music">音乐</option>
                 </select>
               </div>
 
               <div className="flex gap-3 pt-2">
                 <button onClick={() => { resetCreateForm(); setShowCreateModal(false); }}
-                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-50">取消</button>
+                  disabled={creating || uploading}
+                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed">取消</button>
                 <button onClick={handleCreate}
                   disabled={creating || uploading || (createMode === 'topic' && !topic.trim()) || (createMode === 'upload' && !uploadFile)}
                   className="flex-1 bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-indigo-700 disabled:opacity-50">

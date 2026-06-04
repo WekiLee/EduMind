@@ -103,6 +103,27 @@ async def chat_websocket(websocket: WebSocket, token: str):
 
     await websocket.accept()
 
+    # ── 从数据库加载用户的学习风格配置 ──
+    learner_profile = None
+    try:
+        from app.models.user import User
+        async with async_session_factory() as db:
+            user_result = await db.execute(select(User).where(User.id == user_id))
+            user = user_result.scalar_one_or_none()
+            if user and user.learner_profile:
+                lp = user.learner_profile
+                if isinstance(lp, dict) and any(k in lp for k in ("abstraction_level", "analogy_density")):
+                    learner_profile = lp
+    except Exception:
+        pass
+    if learner_profile is None:
+        learner_profile = {
+            "abstraction_level": 0.5,
+            "analogy_density": 0.5,
+            "teaching_speed": 0.5,
+            "feedback_tone": 0.5,
+        }
+
     session_id = ""
     current_node_id = ""
     chat_history: list[dict] = []
@@ -182,12 +203,6 @@ async def chat_websocket(websocket: WebSocket, token: str):
 
                 domain_id = node.get("domain_id", "general")
                 profile = load_domain_profile(domain_id)
-                learner_profile = {
-                    "abstraction_level": 0.5,
-                    "analogy_density": 0.5,
-                    "teaching_speed": 0.5,
-                    "feedback_tone": 0.5,
-                }
 
                 # 保存用户消息
                 await save_message(session_id, "user", content)
@@ -203,14 +218,23 @@ async def chat_websocket(websocket: WebSocket, token: str):
                         },
                     ] + chat_history[-4:]  # 保留最近 4 条
 
-                # ── LLM 回答 ──
-                answer = await llm.answer_question(
-                    question=content,
-                    node=node,
-                    domain_profile=profile.get("domain", {}),
-                    learner_profile=learner_profile,
-                    chat_history=chat_history,
-                )
+                # ── LLM 回答（带超时和错误处理）──
+                try:
+                    answer = await llm.answer_question(
+                        question=content,
+                        node=node,
+                        domain_profile=profile.get("domain", {}),
+                        learner_profile=learner_profile,
+                        chat_history=chat_history,
+                    )
+                except Exception as e:
+                    print(f"  ❌ LLM 教学回答失败: {e}")
+                    await websocket.send_json({
+                        "type": "error",
+                        "code": "llm_error",
+                        "message": f"AI 回答失败: {str(e)[:100]}。请检查 API 配置或稍后重试。",
+                    })
+                    continue
 
                 # 流式发送
                 for i in range(0, len(answer), 20):
@@ -266,13 +290,12 @@ async def chat_websocket(websocket: WebSocket, token: str):
                     {"title": f"前置：{n.get('title', '')}", **n} for n in prereqs if n.get("id") != node_id
                 ]
 
-                learner_profile = {
-                    "abstraction_level": 0.5,
-                    "analogy_density": 0.5,
-                    "teaching_speed": 0.5,
-                    "feedback_tone": 0.5,
-                }
-                suggestion = await llm.suggest_extension(node, all_related, learner_profile)
+                try:
+                    suggestion = await llm.suggest_extension(node, all_related, learner_profile)
+                except Exception as e:
+                    print(f"  ❌ LLM 延伸请求失败: {e}")
+                    await websocket.send_json({"type": "error", "code": "llm_error", "message": f"延伸请求失败: {str(e)[:80]}"})
+                    continue
 
                 await websocket.send_json(
                     {

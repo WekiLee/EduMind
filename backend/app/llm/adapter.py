@@ -4,7 +4,10 @@ import hashlib
 import json
 from collections.abc import AsyncGenerator
 
+import litellm
 from litellm import acompletion
+
+litellm.request_timeout = 30  # LLM 调用超时 30 秒
 
 from app.core.config import settings
 
@@ -204,7 +207,6 @@ class LLMAdapter:
             {"role": "system", "content": f"{prompt_template}\n\n{learner_style}"},
         ]
         if chat_history:
-            # 裁剪后的上下文
             trimmed = self.trim_context(chat_history)
             messages.extend(trimmed)
 
@@ -215,7 +217,7 @@ class LLMAdapter:
             }
         )
 
-        return await self.chat(messages, temperature=0.7)
+        return await self.chat(messages, temperature=0.7, max_tokens=4096)
 
     async def answer_question(
         self,
@@ -243,7 +245,7 @@ class LLMAdapter:
         if not chat_history or chat_history[-1].get("content") != question:
             messages.append({"role": "user", "content": question})
 
-        return await self.chat(messages, temperature=0.7)
+        return await self.chat(messages, temperature=0.7, max_tokens=4096)
 
     async def generate_quiz(self, node: dict, domain_profile: dict) -> dict:
         """生成测验题目（带缓存，相同节点不出两次题）"""

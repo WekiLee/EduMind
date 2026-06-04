@@ -1,0 +1,42 @@
+domain:
+  id: "music"
+  name: "音乐"
+  aliases: ["音乐", "music"]
+
+  graph_structure:
+    type: "lattice"
+    allow_skip: true
+    allow_parallel: true
+
+  content_format:
+    card_template: "music_card"
+    supports:
+      - "audio_playback"
+    examples_required: true
+
+  pedagogy:
+    strategy: "demonstrate_imitate_create"
+    steps_per_node:
+      - "demonstrate"
+      - "explain_theory"
+      - "imitate"
+      - "create"
+      - "assess"
+    dialogue_style: "coach"
+
+  assessment:
+    types:
+      - "multiple_choice"
+    passing_mastery: 0.7
+    allow_retake: true
+
+  prompt_overrides:
+    teach_concept: |
+      你是一位音乐教师。请用以下方式讲解：
+      - 先示范或描述音乐概念
+      - 解释背后的乐理知识
+      - 鼓励学生尝试练习
+      - 使用比喻让抽象概念更容易理解
+    generate_quiz: |
+      请根据以下音乐知识点生成 3 道选择题。
+      考查乐理概念的理解。

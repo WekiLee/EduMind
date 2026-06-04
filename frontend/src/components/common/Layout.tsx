@@ -14,12 +14,15 @@ export default function Layout() {
   return (
     <div className="flex h-screen">
       <aside className="w-60 bg-white border-r border-gray-200 flex flex-col">
-        <div className="p-4 border-b border-gray-100">
-          <h1 className="text-xl font-bold text-indigo-600">EduMind</h1>
-          <p className="text-xs text-gray-400 mt-1">
-            {user?.name || '用户'}
-            {user?.role === 'admin' && <span className="ml-1 text-yellow-600">(管理员)</span>}
-          </p>
+        <div className="p-4 border-b border-gray-100 flex items-center gap-3">
+          <img src="/edu_logo.png" alt="EduMind" className="h-8 w-auto" />
+          <div>
+            <h1 className="text-lg font-bold text-indigo-600">EduMind</h1>
+            <p className="text-xs text-gray-400">
+              {user?.name || '用户'}
+              {user?.role === 'admin' && <span className="ml-1 text-yellow-600">(管理员)</span>}
+            </p>
+          </div>
         </div>
 
         <nav className="flex-1 p-3 space-y-1 overflow-auto">
