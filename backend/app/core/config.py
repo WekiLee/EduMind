@@ -35,6 +35,11 @@ class Settings(BaseSettings):
     # ── 语音 ──
     whisper_model_size: str = "base"
 
+    # ── 搜索编排 ──
+    search_provider: str = "duckduckgo"  # duckduckgo | searxng | none
+    search_api_url: str = ""  # SearXNG 实例地址（仅 searxng provider 需要）
+    search_max_results: int = 5
+
     # ── 上下文管理 ──
     context_max_tokens: int = 4096  # 送入 LLM 的上下文最大 token 数
     context_recent_messages: int = 6  # 至少保留的最近消息数

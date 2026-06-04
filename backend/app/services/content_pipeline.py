@@ -7,7 +7,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.llm.adapter import LLMAdapter
 from app.models.path import LearningPath
+from app.services.cross_validation import CrossValidationService
 from app.services.knowledge_graph import KnowledgeGraphService
+from app.services.search_orchestrator import SearchOrchestrator
 
 
 class ContentPipelineService:
@@ -17,6 +19,8 @@ class ContentPipelineService:
         self.db = db
         self.llm = LLMAdapter()
         self.kg = KnowledgeGraphService()
+        self.searcher = SearchOrchestrator()
+        self.cross_validator = CrossValidationService()
 
     async def process_topic(self, user_id: str, topic: str, domain_id: str) -> LearningPath:
         """模式A：通过主题生成学习路径"""
@@ -46,6 +50,67 @@ class ContentPipelineService:
         resolved_syllabus = self._resolve_syllabus_ids(modules, node_id_map)
 
         path.syllabus = resolved_syllabus
+        path.status = "active"
+        await self.db.flush()
+
+        return path
+
+    async def process_topic_with_search(
+        self, user_id: str, topic: str, domain_id: str
+    ) -> LearningPath:
+        """模式C：主题 → 自动搜索 → 交叉验证 → 生成学习路径（增强版）"""
+        # 0. 自动检测领域
+        if not domain_id or domain_id == "auto":
+            detected = await self.llm.detect_domain(topic)
+            domain_id = detected.get("domain", "general")
+
+        # 1. 创建路径（初始状态 processing）
+        path = LearningPath(
+            user_id=user_id,
+            topic=topic,
+            domain_id=domain_id,
+            status="processing",
+            source="topic_search",
+        )
+        self.db.add(path)
+        await self.db.flush()
+
+        # 2. LLM 提取基础知识
+        llm_knowledge = await self.llm.extract_knowledge(f"主题：{topic}", domain_id)
+
+        # 3. 自动搜索相关主题
+        search_topics = [topic]
+        # 从 LLM 提取的节点标题中提取搜索关键词（取前 3 个）
+        node_titles = [n.get("title", "") for n in llm_knowledge.get("nodes", [])[:3]]
+        search_topics.extend(node_titles)
+
+        search_results_map = await self.searcher.parallel_search(search_topics)
+        all_results = []
+        for resp in search_results_map.values():
+            all_results.extend(resp.results)
+
+        # 4. 交叉验证
+        if all_results:
+            enriched = await self.cross_validator.enrich_with_search(
+                topic=topic,
+                llm_knowledge=llm_knowledge,
+                search_results=all_results,
+                domain_id=domain_id,
+            )
+            # 为节点补充 ref_links
+            ref_links = CrossValidationService.extract_ref_links(all_results)
+            for node in enriched.get("nodes", []):
+                if not node.get("ref_links"):
+                    node["ref_links"] = ref_links
+        else:
+            enriched = llm_knowledge
+
+        # 5. 写入知识图谱
+        node_id_map = await self.kg.create_nodes_from_extraction(enriched, path.id, domain_id)
+
+        # 6. 生成大纲
+        modules = enriched.get("modules", [])
+        path.syllabus = self._resolve_syllabus_ids(modules, node_id_map)
         path.status = "active"
         await self.db.flush()
 

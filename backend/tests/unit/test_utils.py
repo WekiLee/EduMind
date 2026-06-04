@@ -200,3 +200,132 @@ class TestParseJson:
     def test_invalid_json_raises(self):
         with pytest.raises(Exception):
             LLMAdapter._parse_json("这不是 JSON")
+
+
+# ──────────────────────────────────────────
+# 搜索编排器
+# ──────────────────────────────────────────
+
+
+class TestSearchOrchestrator:
+    """SearchOrchestrator 单元测试"""
+
+    def test_search_disabled(self):
+        """search_provider=none 时返回空结果"""
+        from app.services.search_orchestrator import SearchOrchestrator
+
+        # 临时修改配置
+        import app.core.config as config_mod
+        original = config_mod.settings.search_provider
+        config_mod.settings.search_provider = "none"
+
+        try:
+            orch = SearchOrchestrator()
+            resp = orch.search("test")
+            assert resp.results == []
+        finally:
+            config_mod.settings.search_provider = original
+
+    def test_search_unknown_provider(self):
+        """未知 provider 降级返回空"""
+        from app.services.search_orchestrator import SearchOrchestrator
+
+        import app.core.config as config_mod
+        original = config_mod.settings.search_provider
+        config_mod.settings.search_provider = "unknown_provider"
+
+        try:
+            orch = SearchOrchestrator()
+            resp = orch.search("test")
+            assert resp.results == []
+            assert resp.error is not None
+        finally:
+            config_mod.settings.search_provider = original
+
+    def test_search_result_dataclass(self):
+        """SearchResult 数据结构正确"""
+        from app.services.search_orchestrator import SearchResult
+
+        r = SearchResult(title="标题", snippet="摘要", url="https://example.com", source="web")
+        assert r.title == "标题"
+        assert r.snippet == "摘要"
+        assert r.url == "https://example.com"
+        assert r.source == "web"
+
+    def test_parallel_search_with_empty(self):
+        """并发搜索空列表返回空字典"""
+        from app.services.search_orchestrator import SearchOrchestrator
+
+        import app.core.config as config_mod
+        original = config_mod.settings.search_provider
+        config_mod.settings.search_provider = "none"
+
+        try:
+            orch = SearchOrchestrator()
+            results = orch.parallel_search([])
+            assert results == {}
+        finally:
+            config_mod.settings.search_provider = original
+
+
+class TestCrossValidation:
+    """CrossValidationService 单元测试"""
+
+    def test_add_default_confidence(self):
+        from app.services.cross_validation import CrossValidationService
+
+        knowledge = {
+            "nodes": [
+                {"title": "变量", "content": "变量是..."},
+                {"title": "循环", "content": "循环是..."},
+            ],
+            "relations": [],
+            "modules": [],
+        }
+        result = CrossValidationService._add_default_confidence(knowledge)
+        for node in result["nodes"]:
+            assert node["confidence"] == 0.8
+            assert node["sources"] == ["llm_generated"]
+
+    def test_add_default_confidence_empty(self):
+        from app.services.cross_validation import CrossValidationService
+
+        result = CrossValidationService._add_default_confidence({"nodes": []})
+        assert result["nodes"] == []
+
+    def test_extract_ref_links(self):
+        from app.services.cross_validation import CrossValidationService
+        from app.services.search_orchestrator import SearchResult
+
+        results = [
+            SearchResult("标题1", "摘要1", "https://example.com/1", "web"),
+            SearchResult("标题2", "摘要2", "", "web"),  # 空 URL 应被过滤
+            SearchResult("标题3", "摘要3", "https://example.com/3", "searxng"),
+        ]
+        links = CrossValidationService.extract_ref_links(results, max_links=5)
+        assert len(links) == 2  # 第二个空 URL 被过滤
+        assert links[0]["title"] == "标题1"
+        assert links[0]["url"] == "https://example.com/1"
+        assert links[1]["source"] == "searxng"
+
+    def test_extract_ref_links_empty(self):
+        from app.services.cross_validation import CrossValidationService
+
+        links = CrossValidationService.extract_ref_links([])
+        assert links == []
+
+    def test_enrich_without_search_results(self):
+        """无搜索结果时原样返回"""
+        from app.services.cross_validation import CrossValidationService
+
+        svc = CrossValidationService()
+        knowledge = {
+            "nodes": [{"title": "A", "content": "A的内容"}],
+            "relations": [],
+            "modules": [{"name": "模块1", "order": 1, "node_titles": ["A"]}],
+        }
+        result = svc.enrich_with_search("测试", knowledge, [], "general")
+        # 内容应保留
+        assert result["nodes"][0]["title"] == "A"
+        assert result["nodes"][0]["confidence"] == 0.8
+        assert result["nodes"][0]["sources"] == ["llm_generated"]

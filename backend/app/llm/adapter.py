@@ -359,6 +359,70 @@ class LLMAdapter:
         result = await self.chat([{"role": "user", "content": prompt}], temperature=0.2, use_cache=True)
         return self._parse_json(result)
 
+    async def cross_validate_knowledge(
+        self,
+        topic: str,
+        llm_knowledge: dict,
+        search_snippets: list[str],
+        search_sources: list[str],
+        domain_id: str,
+    ) -> dict:
+        """交叉验证：将 LLM 生成的知识点与搜索结果比对，返回增强后的结构化知识"""
+        snippets_text = "\n\n".join(
+            f"[来源 {i+1}] {s[:600]}" for i, s in enumerate(search_snippets[:8])
+        )
+        prompt = f"""你是一位知识验证专家。以下是关于「{topic}」的初步知识结构和网络搜索结果。
+
+=== LLM 初步生成的知识点 ===
+{json.dumps(llm_knowledge, ensure_ascii=False, indent=2)[:4000]}
+
+=== 网络搜索结果（多源）===
+{snippets_text}
+
+请执行以下验证并返回 JSON：
+
+1. **事实核查**：对比多个来源，标记可能存在的矛盾或已过时的信息
+2. **内容补充**：如果搜索结果包含 LLM 生成中缺少的重要知识点，请补充
+3. **置信评分**：对每个知识点给出 confidence (0.0~1.0)，依据多个来源一致性评估
+4. **来源标记**：在每个节点中记录 sources 字段，列出支持该节点的来源索引
+5. **引用链接**：如果搜索结果提供了可引用的信息，在 ref_links 中记录
+
+返回格式（严格 JSON，不要 markdown 包裹）：
+{{
+  "nodes": [
+    {{"title": "...", "summary": "...", "content": "...",
+      "difficulty": "intro/intermediate/advanced",
+      "node_type": "concept/skill/fact/procedure",
+      "confidence": 0.0~1.0,
+      "sources": ["llm_generated", "search_1"],
+      "examples": [],
+      "ref_links": [{{"title": "...", "url": "..."}}]}}
+  ],
+  "relations": [
+    {{"from": "节点标题", "to": "节点标题", "type": "PREREQUISITE"}}
+  ],
+  "modules": [
+    {{"name": "模块名", "order": 1, "node_titles": ["节点A", "节点B"]}}
+  ]
+}}
+
+注意：如果没有矛盾或补充，保持原结构不变，只增加 confidence 和 sources 字段。"""
+
+        result = await self.chat(
+            [{"role": "user", "content": prompt}], temperature=0.3, max_tokens=8192, use_cache=False
+        )
+
+        if not result or len(result.strip()) < 50:
+            return {}
+
+        try:
+            parsed = self._parse_json(result)
+            if isinstance(parsed, dict) and "nodes" in parsed:
+                return parsed
+            return {}
+        except Exception:
+            return {}
+
     async def suggest_extension(self, node: dict, related_nodes: list[dict], learner_profile: dict) -> str:
         """生成延伸内容"""
         learner_style = self._learner_to_instruction(learner_profile)
