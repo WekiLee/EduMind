@@ -100,12 +100,12 @@ export default function LearnPage() {
   };
 
   useEffect(() => {
-    if (firstIncompleteNode && !currentNode) {
+    if (!currentNode && (firstIncompleteNode || reviewNodeId)) {
       // 如果有 review 参数，加载指定的复习节点；否则加载第一个未完成节点
-      const targetId = reviewNodeId || firstIncompleteNode.id;
+      const targetId = reviewNodeId || firstIncompleteNode!.id;
       loadNode(targetId);
     }
-  }, [firstIncompleteNode, currentNode]);
+  }, [firstIncompleteNode, currentNode, reviewNodeId]);
 
   // 发送聊天消息
   const handleSend = () => {

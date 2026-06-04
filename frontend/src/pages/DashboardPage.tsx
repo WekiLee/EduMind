@@ -19,6 +19,7 @@ export default function DashboardPage() {
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [dragOver, setDragOver] = useState(false);
+  const [createError, setCreateError] = useState('');  // 弹窗内错误，不遮挡
   const [reviewDue, setReviewDue] = useState<{ node_id: string; path_id: string; path_topic: string; mastery: number }[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -67,7 +68,7 @@ export default function DashboardPage() {
         setTopic('');
         navigate(`/learn/${data.data.id}`);
       } catch (err: any) {
-        setError(err.response?.data?.detail || '创建失败');
+        setCreateError(err.response?.data?.detail || '创建失败');
       } finally {
         setCreating(false);
       }
@@ -88,7 +89,7 @@ export default function DashboardPage() {
         setUploadFile(null);
         navigate(`/learn/${data.data.id}`);
       } catch (err: any) {
-        setError(err.response?.data?.detail || '上传失败');
+        setCreateError(err.response?.data?.detail || '上传失败');
       } finally {
         setUploading(false);
         setUploadProgress(0);
@@ -109,6 +110,7 @@ export default function DashboardPage() {
     setTopic('');
     setUploadFile(null);
     setCreateMode('topic');
+    setCreateError('');
   };
 
   return (
@@ -206,21 +208,26 @@ export default function DashboardPage() {
             <h2 className="text-lg font-bold mb-4">创建学习路径</h2>
 
             <div className="flex border-b border-gray-200 mb-4">
-              <button onClick={() => { setCreateMode('topic'); setUploadFile(null); }}
+              <button onClick={() => { setCreateMode('topic'); setUploadFile(null); setCreateError(''); }}
                 disabled={creating || uploading}
                 className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${createMode === 'topic' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-400 hover:text-gray-600'} disabled:opacity-30`}>
                 ✏️ 输入主题</button>
-              <button onClick={() => { setCreateMode('search'); setUploadFile(null); }}
+              <button onClick={() => { setCreateMode('search'); setUploadFile(null); setCreateError(''); }}
                 disabled={creating || uploading}
                 className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${createMode === 'search' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-400 hover:text-gray-600'} disabled:opacity-30`}>
                 🔍 搜索增强</button>
-              <button onClick={() => { setCreateMode('upload'); setTopic(''); }}
+              <button onClick={() => { setCreateMode('upload'); setTopic(''); setCreateError(''); }}
                 disabled={creating || uploading}
                 className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${createMode === 'upload' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-400 hover:text-gray-600'} disabled:opacity-30`}>
                 📄 上传文件</button>
             </div>
 
             <div className="space-y-4">
+              {createError && (
+                <div className="bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+                  <p className="text-red-600 text-sm">{createError}</p>
+                </div>
+              )}
               {createMode !== 'upload' ? (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">学习主题</label>
