@@ -58,8 +58,8 @@ interface LearningState {
 
   // Actions
   setPaths: (paths: LearningPath[]) => void;
-  setCurrentPath: (path: LearningPath) => void;
-  setCurrentNode: (node: KnowledgeNode) => void;
+  setCurrentPath: (path: LearningPath | null) => void;
+  setCurrentNode: (node: KnowledgeNode | null) => void;
   setNodeProgress: (progress: NodeProgress) => void;
   addChatMessage: (msg: ChatMessage) => void;
   appendChatChunk: (text: string) => void;

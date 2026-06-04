@@ -63,7 +63,7 @@ export function stopRecording(): Promise<{ blob: Blob; base64: string }> {
     };
 
     mediaRecorder.onerror = () => {
-      mediaRecorder.stream.getTracks().forEach((t) => t.stop());
+      mediaRecorder?.stream.getTracks().forEach((t) => t.stop());
       reject(new Error('录音失败'));
       mediaRecorder = null;
     };
