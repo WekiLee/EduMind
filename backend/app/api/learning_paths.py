@@ -46,6 +46,30 @@ async def create_learning_path(
     return {"data": path.to_dict()}
 
 
+class CreatePathWithSearch(BaseModel):
+    mode: str = "topic_search"
+    topic: str
+    domain_id: str = "general"
+
+
+@router.post("/with-search", status_code=201)
+async def create_learning_path_with_search(
+    body: CreatePathWithSearch,
+    user_id: str = Depends(get_current_user_id),
+    db: AsyncSession = Depends(get_db),
+):
+    """创建学习路径（主题+搜索增强模式）"""
+    from app.models.user import User
+
+    result = await db.execute(select(User).where(User.id == user_id))
+    user = result.scalar_one_or_none()
+    if user and user.role == "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="管理员账号仅用于管理，无法创建学习路径")
+    pipeline = ContentPipelineService(db)
+    path = await pipeline.process_topic_with_search(user_id, body.topic, body.domain_id)
+    return {"data": path.to_dict()}
+
+
 class CreatePathByUpload(BaseModel):
     mode: str = "upload"
     domain_id: str = "general"

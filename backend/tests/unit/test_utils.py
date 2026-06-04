@@ -23,6 +23,9 @@ class TestNodeToDict:
         assert result["title"] == "变量"
         assert result["difficulty"] == "intro"
         assert result["examples"] == []
+        assert result["confidence"] == 0.8
+        assert result["sources"] == ["llm_generated"]
+        assert result["ref_links"] == []
 
     def test_none_node(self):
         result = KnowledgeGraphService._node_to_dict(None)
@@ -292,27 +295,6 @@ class TestCrossValidation:
 
         result = CrossValidationService._add_default_confidence({"nodes": []})
         assert result["nodes"] == []
-
-    def test_extract_ref_links(self):
-        from app.services.cross_validation import CrossValidationService
-        from app.services.search_orchestrator import SearchResult
-
-        results = [
-            SearchResult("标题1", "摘要1", "https://example.com/1", "web"),
-            SearchResult("标题2", "摘要2", "", "web"),  # 空 URL 应被过滤
-            SearchResult("标题3", "摘要3", "https://example.com/3", "searxng"),
-        ]
-        links = CrossValidationService.extract_ref_links(results, max_links=5)
-        assert len(links) == 2  # 第二个空 URL 被过滤
-        assert links[0]["title"] == "标题1"
-        assert links[0]["url"] == "https://example.com/1"
-        assert links[1]["source"] == "searxng"
-
-    def test_extract_ref_links_empty(self):
-        from app.services.cross_validation import CrossValidationService
-
-        links = CrossValidationService.extract_ref_links([])
-        assert links == []
 
     def test_enrich_without_search_results(self):
         """无搜索结果时原样返回"""

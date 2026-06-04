@@ -1,9 +1,6 @@
 """交叉验证服务 —— 多源内容合并 + 置信评分 + 结构化输出"""
 
-import json
-
 from app.llm.adapter import LLMAdapter
-from app.services.search_orchestrator import SearchResult
 
 
 class CrossValidationService:
@@ -68,12 +65,3 @@ class CrossValidationService:
             if "sources" not in node:
                 node["sources"] = ["llm_generated"]
         return knowledge
-
-    @staticmethod
-    def extract_ref_links(search_results: list[SearchResult], max_links: int = 5) -> list[dict]:
-        """从搜索结果中提取引用链接"""
-        return [
-            {"title": r.title, "url": r.url, "source": r.source}
-            for r in search_results[:max_links]
-            if r.url
-        ]

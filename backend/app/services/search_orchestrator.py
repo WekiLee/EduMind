@@ -4,6 +4,8 @@ import asyncio
 from dataclasses import dataclass, field
 from urllib.parse import quote_plus
 
+import httpx
+
 from app.core.config import settings
 
 
@@ -58,8 +60,6 @@ class SearchOrchestrator:
         通过 DuckDuckGo Lite API 搜索（免费，无需 Key）。
         API: https://api.duckduckgo.com/?q=...&format=json
         """
-        import httpx
-
         url = f"https://api.duckduckgo.com/?q={quote_plus(query)}&format=json&no_html=1&skip_disambig=1"
         try:
             async with httpx.AsyncClient(timeout=10) as client:
@@ -70,7 +70,6 @@ class SearchOrchestrator:
             results = []
             # DuckDuckGo 的 AbstractText 是最佳匹配
             abstract = data.get("AbstractText", "")
-            abstract_source = data.get("AbstractSource", "")
             if abstract:
                 results.append(SearchResult(
                     title=data.get("Heading", query),
@@ -106,8 +105,6 @@ class SearchOrchestrator:
         通过自建 SearXNG 实例搜索。
         需在 .env 中配置 SEARCH_API_URL 指向 SearXNG 实例。
         """
-        import httpx
-
         if not self.api_url:
             return SearchResponse(query=query, error="SearXNG 未配置 SEARCH_API_URL")
 

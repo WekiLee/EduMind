@@ -97,11 +97,7 @@ class ContentPipelineService:
                 search_results=all_results,
                 domain_id=domain_id,
             )
-            # 为节点补充 ref_links
-            ref_links = CrossValidationService.extract_ref_links(all_results)
-            for node in enriched.get("nodes", []):
-                if not node.get("ref_links"):
-                    node["ref_links"] = ref_links
+            # 只保留 LLM 交叉验证产生的 per-node 引用链接，不全局分配
         else:
             enriched = llm_knowledge
 

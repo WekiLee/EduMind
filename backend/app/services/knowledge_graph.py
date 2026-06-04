@@ -43,6 +43,7 @@ class KnowledgeGraphService:
           code_snippets: $code_snippets,
           ref_links: $ref_links,
           source: $source,
+          sources: $sources,
           confidence: $confidence,
           created_at: $created_at
         })
@@ -60,6 +61,7 @@ class KnowledgeGraphService:
             "code_snippets": node_data.get("code_snippets", []),
             "ref_links": node_data.get("ref_links", []),
             "source": node_data.get("source", "llm_generated"),
+            "sources": node_data.get("sources", ["llm_generated"]),
             "confidence": node_data.get("confidence", 0.8),
             "created_at": node_data.get("created_at", ""),
         }
@@ -93,7 +95,8 @@ class KnowledgeGraphService:
         # 1. 创建所有节点
         for _idx, node_data in enumerate(knowledge.get("nodes", [])):
             node_data["domain_id"] = domain_id
-            node_data["source"] = "llm_generated"
+            # 保留交叉验证产生的 source/sources 信息，不覆盖
+            node_data.setdefault("source", "llm_generated")
 
             # 找出所属模块
             for module in knowledge.get("modules", []):
@@ -264,6 +267,10 @@ class KnowledgeGraphService:
             "node_type": props.get("node_type", "concept"),
             "examples": props.get("examples", []),
             "code_snippets": props.get("code_snippets", []),
+            "ref_links": props.get("ref_links", []),
+            "source": props.get("source", "llm_generated"),
+            "sources": props.get("sources", ["llm_generated"]),
+            "confidence": props.get("confidence", 0.8),
         }
 
     async def module_summary(self, path_id: str) -> list[dict]:
