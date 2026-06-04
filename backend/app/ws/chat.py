@@ -2,10 +2,8 @@
 
 import base64
 import json
-import time
 from datetime import UTC, datetime
 
-import yaml
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from sqlalchemy import select
 
@@ -13,39 +11,11 @@ from app.core.database import async_session_factory, get_redis
 from app.core.security import decode_access_token
 from app.llm.adapter import LLMAdapter
 from app.models.quiz import ChatMessage, ChatSession
+from app.services.domain_profile import load_domain_profile
 from app.services.knowledge_graph import KnowledgeGraphService
 from app.services.voice import synthesize_speech, transcribe_audio
 
 router = APIRouter()
-
-
-# ── 领域配置缓存（类级，避免重复读盘）──
-_domain_profile_cache: dict[str, dict] = {}
-_last_loaded: dict[str, float] = {}
-
-
-def load_domain_profile(domain_id: str) -> dict:
-    """加载领域配置（带缓存，最多 5 分钟重新读盘一次）"""
-    now = time.time()
-    cached = _domain_profile_cache.get(domain_id)
-    last = _last_loaded.get(domain_id, 0)
-
-    if cached and (now - last) < 300:
-        return cached
-
-    import os
-
-    path = os.path.join("app", "domain_profiles", f"{domain_id}.yaml")
-    if not os.path.exists(path):
-        path = os.path.join("app", "domain_profiles", "general.yaml")
-        domain_id = "general"
-
-    with open(path, encoding="utf-8") as f:
-        profile = yaml.safe_load(f)
-
-    _domain_profile_cache[domain_id] = profile
-    _last_loaded[domain_id] = now
-    return profile
 
 
 async def load_chat_history(session_id: str) -> list[dict]:

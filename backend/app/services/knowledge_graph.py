@@ -167,41 +167,40 @@ class KnowledgeGraphService:
 
     async def get_subgraph(self, node_id: str, depth: int = 2) -> dict:
         """获取以节点为中心的子图（用于图谱可视化）"""
+        # 单次查询获取所有节点和关系，depth 控制路径深度
         results = await self._run(
-            """
-            MATCH (n:KnowledgeNode {id: $node_id})
-            OPTIONAL MATCH (n)-[:PREREQUISITE|RELATED|EXTENDS*1..2]-(related)
-            RETURN n, collect(DISTINCT related) AS related_nodes
+            f"""
+            MATCH path = (n:KnowledgeNode {{id: $node_id}})
+                    -[:PREREQUISITE|RELATED|EXTENDS*1..{depth}]-(related)
+            UNWIND nodes(path) AS node
+            UNWIND relationships(path) AS rel
+            WITH
+              collect(DISTINCT {{id: node.id, title: node.title, summary: node.summary,
+                content: node.content, difficulty: node.difficulty, domain_id: node.domain_id,
+                node_type: node.node_type, examples: node.examples, code_snippets: node.code_snippets}}) AS all_nodes,
+              collect(DISTINCT {{source: startNode(rel).id, target: endNode(rel).id, type: type(rel)}}) AS all_edges
+            RETURN all_nodes, all_edges
         """,
             {"node_id": node_id},
         )
 
-        if not results:
+        if not results or not results[0].get("all_nodes"):
+            # 也可能是节点存在但无关联节点，单独查一下
+            single = await self._run(
+                "MATCH (n:KnowledgeNode {id: $id}) RETURN n",
+                {"id": node_id},
+            )
+            if single:
+                return {
+                    "nodes": [self._node_to_dict(single[0]["n"])],
+                    "edges": [],
+                }
             return {"nodes": [], "edges": []}
 
         data = results[0]
-        all_nodes = {data["n"]["id"]: data["n"]}
-        for rn in data["related_nodes"]:
-            if rn and rn.get("id"):
-                all_nodes[rn["id"]] = rn
-
-        # 收集边
-        edges = []
-        node_ids = list(all_nodes.keys())
-        for nid in node_ids:
-            edge_results = await self._run(
-                """
-                MATCH (a:KnowledgeNode {id: $from_id})-[r]->(b:KnowledgeNode)
-                WHERE b.id IN $node_ids
-                RETURN a.id AS source, b.id AS target, type(r) AS type
-            """,
-                {"from_id": nid, "node_ids": node_ids},
-            )
-            edges.extend(edge_results)
-
         return {
-            "nodes": [self._node_to_dict(n) for n in all_nodes.values()],
-            "edges": edges,
+            "nodes": [self._node_to_dict(n) for n in data["all_nodes"]],
+            "edges": data["all_edges"],
         }
 
     async def get_prerequisites(self, node_id: str) -> list[dict]:

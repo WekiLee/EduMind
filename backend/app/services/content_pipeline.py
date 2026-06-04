@@ -1,5 +1,6 @@
 """内容管道 —— 混合内容源提取 + 领域识别 + 结构化入库"""
 
+import asyncio
 from pathlib import Path
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -54,8 +55,8 @@ class ContentPipelineService:
         self, user_id: str, file_path: str, domain_id: str, topic: str | None = None
     ) -> LearningPath:
         """模式B：通过上传文件生成学习路径"""
-        # 1. 提取文本
-        text = self._extract_text(file_path)
+        # 1. 提取文本（同步操作放入线程池避免阻塞事件循环）
+        text = await asyncio.to_thread(self._extract_text, file_path)
         topic = topic or Path(file_path).stem
 
         # 2. LLM 提取知识点
@@ -161,7 +162,7 @@ class ContentPipelineService:
                     {
                         "module_name": mod_name,
                         "order": len(resolved) + 1,
-                        "node_ids": [node_id_map.get(t, t) for t in node_titles],
+                        "node_ids": [node_id_map.get(t, t) for t in node_titles if isinstance(t, str)],
                     }
                 )
                 continue

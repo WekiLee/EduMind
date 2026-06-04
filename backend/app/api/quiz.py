@@ -2,7 +2,6 @@
 
 import time
 
-import yaml
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy import select
@@ -12,6 +11,7 @@ from app.core.database import get_db
 from app.core.security import get_current_user_id
 from app.models.progress import NodeProgress
 from app.services.assessment import AssessmentService
+from app.services.domain_profile import load_domain_profile
 from app.services.knowledge_graph import KnowledgeGraphService
 
 router = APIRouter(prefix="", tags=["测验"])
@@ -34,29 +34,6 @@ def _get_cached_answers(node_id: str) -> list[dict] | None:
 
 def _set_cached_answers(node_id: str, questions: list[dict]):
     _answer_cache[node_id] = (questions, time.time())
-
-
-# ── 领域配置缓存（与 ws/chat.py 共享逻辑，后续可抽取公共模块）──
-_domain_profile_cache: dict[str, tuple[dict, float]] = {}
-_PROFILE_CACHE_TTL = 300
-
-
-def load_domain_profile(domain_id: str) -> dict:
-    """加载领域配置（带缓存）"""
-    entry = _domain_profile_cache.get(domain_id)
-    if entry and (time.time() - entry[1]) < _PROFILE_CACHE_TTL:
-        return entry[0]
-
-    import os
-
-    path = os.path.join("app", "domain_profiles", f"{domain_id}.yaml")
-    if not os.path.exists(path):
-        path = os.path.join("app", "domain_profiles", "general.yaml")
-
-    with open(path, encoding="utf-8") as f:
-        profile = yaml.safe_load(f)
-    _domain_profile_cache[domain_id] = (profile, time.time())
-    return profile
 
 
 @router.post("/nodes/{node_id}/quiz")

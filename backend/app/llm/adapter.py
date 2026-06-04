@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+import time
 from collections.abc import AsyncGenerator
 
 import litellm
@@ -318,19 +319,21 @@ class LLMAdapter:
         result = await self.chat(
             [{"role": "user", "content": prompt}], temperature=0.3, max_tokens=8192, use_cache=True
         )
-        # 调试：打印原始响应的最后 200 字符
-        if len(result) > 8000:
-            assert isinstance(result, str)
-            print(f"  [extract_knowledge] 响应长度: {len(result)} 字符，截断检查...")
-            print(f"  [extract_knowledge] 末尾: ...{result[-200:]}")
-        return self._parse_json(result)
+
+        if len(result) < 50:
+            print(f"  ⚠️ extract_knowledge 返回过短（{len(result)} 字符），使用空结构兜底")
+            return {"nodes": [], "relations": [], "modules": []}
+
+        try:
+            return self._parse_json(result)
+        except json.JSONDecodeError:
+            print(f"  ⚠️ extract_knowledge JSON 解析失败，使用空结构兜底")
+            return {"nodes": [], "relations": [], "modules": []}
 
     async def generate_syllabus(self, nodes: list[dict], domain_profile: dict) -> list[dict]:
         """生成大纲（模块分组）"""
-        import json as _json
-
         titles = [n["title"] for n in nodes]
-        prompt = f"""以下是知识点列表：{_json.dumps(titles, ensure_ascii=False)}
+        prompt = f"""以下是知识点列表：{json.dumps(titles, ensure_ascii=False)}
 
 请将这些知识点按教学逻辑排序并分组，返回 JSON 格式的模块列表。
 每个模块包含名称和该模块包含的知识点标题列表。
@@ -387,8 +390,6 @@ class LLMAdapter:
     @classmethod
     def _get_cached(cls, key: str) -> str | None:
         """从进程缓存获取"""
-        import time
-
         entry = cls._response_cache.get(key)
         if entry:
             response, ts = entry
@@ -400,8 +401,6 @@ class LLMAdapter:
     @classmethod
     def _set_cache(cls, key: str, response: str):
         """写入进程缓存"""
-        import time
-
         cls._response_cache[key] = (response, time.time())
 
     @classmethod

@@ -1,5 +1,7 @@
 """学习路径 API"""
 
+import os
+import tempfile
 import uuid
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
@@ -7,6 +9,7 @@ from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.core.database import get_db
 from app.core.security import get_current_user_id
 from app.models.path import LearningPath
@@ -67,12 +70,17 @@ async def create_path_by_upload(
             detail=f"不支持的文件格式: {ext}，支持: {', '.join(supported)}",
         )
 
-    # 保存到临时文件
-    import os
-    import tempfile
-
-    temp_path = os.path.join(tempfile.gettempdir(), f"upload_{uuid.uuid4().hex}.{ext}")
+    # 检查文件大小（上限从配置读取，默认 50MB）
+    max_bytes = settings.max_upload_size_mb * 1024 * 1024
     content = await file.read()
+    if len(content) > max_bytes:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail=f"文件过大（{len(content) / 1024 / 1024:.1f}MB），上限为 {settings.max_upload_size_mb}MB",
+        )
+
+    # 保存到临时文件
+    temp_path = os.path.join(tempfile.gettempdir(), f"upload_{uuid.uuid4().hex}.{ext}")
     with open(temp_path, "wb") as f:
         f.write(content)
 
