@@ -44,6 +44,10 @@ class SearchOrchestrator:
         """
         搜索入口：根据配置的 provider 分发到对应后端。
         """
+        # 空查询直接返回，避免无用请求
+        if not query or not query.strip():
+            return SearchResponse(query=query, results=[])
+
         if self.provider == "none" or self.provider == "":
             return SearchResponse(query=query, results=[])
 

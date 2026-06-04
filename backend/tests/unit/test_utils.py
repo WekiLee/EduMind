@@ -213,7 +213,7 @@ class TestParseJson:
 class TestSearchOrchestrator:
     """SearchOrchestrator 单元测试"""
 
-    def test_search_disabled(self):
+    async def test_search_disabled(self):
         """search_provider=none 时返回空结果"""
         from app.services.search_orchestrator import SearchOrchestrator
 
@@ -224,12 +224,12 @@ class TestSearchOrchestrator:
 
         try:
             orch = SearchOrchestrator()
-            resp = orch.search("test")
+            resp = await orch.search("test")
             assert resp.results == []
         finally:
             config_mod.settings.search_provider = original
 
-    def test_search_unknown_provider(self):
+    async def test_search_unknown_provider(self):
         """未知 provider 降级返回空"""
         from app.services.search_orchestrator import SearchOrchestrator
 
@@ -239,7 +239,7 @@ class TestSearchOrchestrator:
 
         try:
             orch = SearchOrchestrator()
-            resp = orch.search("test")
+            resp = await orch.search("test")
             assert resp.results == []
             assert resp.error is not None
         finally:
@@ -255,7 +255,7 @@ class TestSearchOrchestrator:
         assert r.url == "https://example.com"
         assert r.source == "web"
 
-    def test_parallel_search_with_empty(self):
+    async def test_parallel_search_with_empty(self):
         """并发搜索空列表返回空字典"""
         from app.services.search_orchestrator import SearchOrchestrator
 
@@ -265,8 +265,24 @@ class TestSearchOrchestrator:
 
         try:
             orch = SearchOrchestrator()
-            results = orch.parallel_search([])
+            results = await orch.parallel_search([])
             assert results == {}
+        finally:
+            config_mod.settings.search_provider = original
+
+    async def test_search_empty_query(self):
+        """空查询直接返回空结果，不请求外部 API"""
+        from app.services.search_orchestrator import SearchOrchestrator
+
+        import app.core.config as config_mod
+        original = config_mod.settings.search_provider
+        config_mod.settings.search_provider = "duckduckgo"
+
+        try:
+            orch = SearchOrchestrator()
+            resp = await orch.search("")
+            assert resp.results == []
+            assert resp.query == ""
         finally:
             config_mod.settings.search_provider = original
 
@@ -296,7 +312,7 @@ class TestCrossValidation:
         result = CrossValidationService._add_default_confidence({"nodes": []})
         assert result["nodes"] == []
 
-    def test_enrich_without_search_results(self):
+    async def test_enrich_without_search_results(self):
         """无搜索结果时原样返回"""
         from app.services.cross_validation import CrossValidationService
 
@@ -306,7 +322,7 @@ class TestCrossValidation:
             "relations": [],
             "modules": [{"name": "模块1", "order": 1, "node_titles": ["A"]}],
         }
-        result = svc.enrich_with_search("测试", knowledge, [], "general")
+        result = await svc.enrich_with_search("测试", knowledge, [], "general")
         # 内容应保留
         assert result["nodes"][0]["title"] == "A"
         assert result["nodes"][0]["confidence"] == 0.8
