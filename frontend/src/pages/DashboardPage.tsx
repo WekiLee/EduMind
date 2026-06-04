@@ -16,6 +16,8 @@ export default function DashboardPage() {
   const [createMode, setCreateMode] = useState<'topic' | 'upload'>('topic');
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [dragOver, setDragOver] = useState(false);
   const [reviewDue, setReviewDue] = useState<{ node_id: string; path_id: string; path_topic: string; mastery: number }[]>([]);
 
   useEffect(() => {
@@ -61,11 +63,16 @@ export default function DashboardPage() {
     } else {
       if (!uploadFile) return;
       setUploading(true);
+      setUploadProgress(0);
       try {
         const formData = new FormData();
         formData.append('file', uploadFile);
         formData.append('domain_id', domainId);
-        const { data } = await api.post('/learning-paths/upload', formData);
+        const { data } = await api.post('/learning-paths/upload', formData, {
+          onUploadProgress: (e) => {
+            if (e.total) setUploadProgress(Math.round((e.loaded / e.total) * 100));
+          },
+        });
         setShowCreateModal(false);
         setUploadFile(null);
         navigate(`/learn/${data.data.id}`);
@@ -73,6 +80,7 @@ export default function DashboardPage() {
         console.error('上传失败', err);
       } finally {
         setUploading(false);
+        setUploadProgress(0);
       }
     }
   };
@@ -231,7 +239,13 @@ export default function DashboardPage() {
               ) : (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">选择文件</label>
-                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-indigo-400 cursor-pointer"
+                  <div
+                    onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+                    onDragLeave={() => setDragOver(false)}
+                    onDrop={(e) => { e.preventDefault(); setDragOver(false); setUploadFile(e.dataTransfer.files[0] || null); }}
+                    className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors ${
+                      dragOver ? 'border-indigo-500 bg-indigo-50' : 'border-gray-300 hover:border-indigo-400'
+                    } cursor-pointer`}
                     onClick={() => document.getElementById('file-input')?.click()}>
                     {uploadFile ? (
                       <p className="text-sm text-indigo-600">{uploadFile.name} ({(uploadFile.size / 1024).toFixed(1)} KB)</p>
@@ -239,11 +253,20 @@ export default function DashboardPage() {
                       <>
                         <FileText size={32} className="mx-auto text-gray-300 mb-2" />
                         <p className="text-sm text-gray-500">点击或拖拽上传文件</p>
-                        <p className="text-xs text-gray-400 mt-1">支持 PDF、MD、TXT</p>
+                        <p className="text-xs text-gray-400 mt-1">支持 PDF、DOCX、MD、TXT</p>
                       </>
                     )}
-                  </div>
-                  <input id="file-input" type="file" accept=".pdf,.md,.txt"
+                    {uploading && uploadProgress > 0 && (
+                    <div className="mt-2">
+                      <div className="bg-gray-200 rounded-full h-2">
+                        <div className="bg-indigo-500 h-2 rounded-full transition-all" style={{ width: `${uploadProgress}%` }} />
+                      </div>
+                      <p className="text-xs text-gray-400 mt-1">上传中 {uploadProgress}%</p>
+                    </div>
+                  )}
+                </div>
+                  <input id="file-input" type="file" accept=".pdf,.docx,.md,.txt"
+                    onDragOver={(e) => e.preventDefault()}
                     onChange={(e) => setUploadFile(e.target.files?.[0] || null)}
                     className="hidden" />
                 </div>

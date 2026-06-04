@@ -58,6 +58,12 @@ if [ -f /opt/neo4j/bin/neo4j ]; then
 fi
 echo "  ✅ Neo4j 就绪（http://localhost:7474, neo4j/edumind_dev）"
 
+# ── 安装文档解析系统依赖（unstructured 需要）──
+echo ""
+echo "[3.5/5] 安装文档解析依赖..."
+sudo apt-get install -y poppler-utils 2>/dev/null || true
+echo "  ✅ 文档解析依赖就绪"
+
 # ── 4. 启动后端 ──
 echo ""
 echo "[4/5] 启动后端..."

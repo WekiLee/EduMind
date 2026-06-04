@@ -26,6 +26,7 @@ domain:
   assessment:
     types:
       - "multiple_choice"
+      - "fill_blank"
     passing_mastery: 0.6
     allow_retake: true
 
@@ -34,4 +35,6 @@ domain:
       你是一位耐心的老师。请用通俗易懂的语言讲解以下知识点。
       讲解完后询问学生是否理解，是否有疑问。
     generate_quiz: |
-      请根据以下知识点生成 3 道选择题。每题 4 个选项，标注正确答案。
+      请根据以下知识点生成 3 道题目，包含选择题和填空题。
+      选择题用 type=multiple_choice，填空题用 type=fill_blank。
+      每道题标注正确答案。填空题的 answer 为完整正确答案文本。

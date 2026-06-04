@@ -60,7 +60,7 @@ async def create_path_by_upload(
     """创建学习路径（上传文件模式）"""
     # 检查文件格式
     ext = file.filename.split(".")[-1].lower() if file.filename else ""
-    supported = ["pdf", "md", "txt", "docx", "pptx"]
+    supported = ["pdf", "docx", "pptx", "md", "txt"]
     if ext not in supported:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

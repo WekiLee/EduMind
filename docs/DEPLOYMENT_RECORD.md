@@ -21,7 +21,7 @@ conda activate edumind
 
 ```bash
 sudo apt-get update
-sudo apt-get install -y postgresql postgresql-contrib redis-server openjdk-17-jre-headless
+sudo apt-get install -y postgresql postgresql-contrib redis-server openjdk-17-jre-headless poppler-utils
 ```
 
 ---
@@ -118,6 +118,26 @@ pip install -r requirements.txt
 ```
 
 > 国内网络可配置 PyPI 镜像：`pip config set global.index-url https://mirrors.aliyun.com/pypi/simple/`
+
+### 3.4 文件上传支持
+
+系统支持通过文件上传创建学习路径。支持的格式及依赖：
+
+| 格式 | 类型 | 系统依赖 | Python 依赖 |
+|------|------|---------|------------|
+| `.txt` | 纯文本 | 无 | 无（内置） |
+| `.md` | Markdown | 无 | 无（内置） |
+| `.pdf` | PDF 文档 | `poppler-utils` | `unstructured[pdf]` |
+| `.docx` | Word 文档 | 无 | `unstructured[docx]` |
+| `.pptx` | PPT 演示文稿 | 无 | `unstructured[pptx]` |
+
+```bash
+# 安装系统依赖（PDF 解析需要）
+sudo apt-get install -y poppler-utils
+
+# Python 依赖已包含在 requirements.txt 中
+pip install -r requirements.txt
+```
 
 ---
 

@@ -78,6 +78,10 @@ cd backend
 cp .env.example .env
 # Edit .env, fill in database URL and DeepSeek API Key
 conda activate edumind  # or python3 -m venv venv && source venv/bin/activate
+
+# Install system dependencies (PDF parsing)
+sudo apt-get install -y poppler-utils
+
 pip install -r requirements.txt
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
@@ -122,6 +126,20 @@ docker compose --profile prod up -d
 | Email | Password | Notes |
 |-------|----------|-------|
 | admin@edumind.cn | admin123 | Password must be changed on first login |
+
+---
+
+## File Upload Support
+
+Learning paths can be created by uploading local files. Supported formats:
+
+| Format | Description | Dependencies |
+|--------|-------------|--------------|
+| `.txt` | Plain text | None (built-in) |
+| `.md` | Markdown | None (built-in) |
+| `.pdf` | PDF documents | `poppler-utils` + `unstructured[pdf]` |
+| `.docx` | Word documents | `unstructured[docx]` |
+| `.pptx` | PowerPoint presentations | `unstructured[pptx]` |
 
 ---
 

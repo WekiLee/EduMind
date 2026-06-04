@@ -18,7 +18,7 @@ pyyaml>=6.0
 python-dotenv>=1.0
 
 # 文档解析（可选）
-# unstructured[pdf,docx,md]>=0.15
+unstructured[pdf,docx,pptx,md]>=0.15
 
 # 测试
 pytest>=8.0

@@ -12,7 +12,7 @@ interface QuizQuestion {
   id: string;
   type: string;
   question: string;
-  options: string[];
+  options?: string[];
 }
 
 interface QuizResult {
@@ -233,33 +233,53 @@ export default function LearnPage() {
               {quizQuestions.map((q, qi) => (
                 <div key={q.id} className="border border-gray-200 rounded-lg p-3">
                   <p className="text-sm font-medium mb-2">{qi + 1}. {q.question}</p>
-                  <div className="space-y-1">
-                    {(q.options || []).map((opt) => {
-                      const isSelected = quizAnswers[q.id] === opt;
-                      const isCorrect = quizResult?.results.find((r) => r.question_id === q.id);
-                      const showResult = quizResult && isCorrect;
-                      const bgColor = showResult
-                        ? isCorrect.correct && isSelected
-                          ? 'bg-green-50 border-green-400'
-                          : !isCorrect.correct && isSelected
-                          ? 'bg-red-50 border-red-400'
-                          : 'bg-gray-50'
-                        : isSelected
-                        ? 'bg-indigo-50 border-indigo-400'
-                        : 'bg-gray-50';
+                  {q.type === 'fill_blank' || !q.options ? (
+                    <div className="space-y-1">
+                      <input
+                        type="text"
+                        value={quizAnswers[q.id] || ''}
+                        onChange={(e) => selectAnswer(q.id, e.target.value)}
+                        disabled={!!quizResult}
+                        placeholder="在此输入答案..."
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:bg-gray-50"
+                      />
+                      {(() => {
+                        const r = quizResult?.results.find((x) => x.question_id === q.id);
+                        if (!r) return null;
+                        return (
+                          <p className={`text-xs mt-1 ${r.correct ? 'text-green-600' : 'text-red-600'}`}>
+                            {r.correct ? '✓ 正确' : `✗ 正确答案：${r.correct_answer}`}
+                          </p>
+                        );
+                      })()}
+                    </div>
+                  ) : (
+                    <div className="space-y-1">
+                      {(q.options || []).map((opt) => {
+                        const isSelected = quizAnswers[q.id] === opt;
+                        const isCorrect = quizResult?.results.find((r) => r.question_id === q.id);
+                        const showResult = quizResult && isCorrect;
+                        const bgColor = showResult
+                          ? isCorrect.correct && isSelected
+                            ? 'bg-green-50 border-green-400'
+                            : !isCorrect.correct && isSelected
+                            ? 'bg-red-50 border-red-400'
+                            : 'bg-gray-50'
+                          : isSelected
+                          ? 'bg-indigo-50 border-indigo-400'
+                          : 'bg-gray-50';
 
-                      return (
-                        <button
-                          key={opt}
-                          onClick={() => !quizResult && selectAnswer(q.id, opt)}
-                          disabled={!!quizResult}
-                          className={`w-full text-left px-3 py-2 rounded-lg border text-sm ${bgColor} hover:bg-gray-100 transition-colors`}
-                        >
-                          {opt}
-                        </button>
-                      );
-                    })}
-                  </div>
+                        return (
+                          <button key={opt}
+                            onClick={() => !quizResult && selectAnswer(q.id, opt)}
+                            disabled={!!quizResult}
+                            className={`w-full text-left px-3 py-2 rounded-lg border text-sm ${bgColor} hover:bg-gray-100 transition-colors`}>
+                            {opt}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

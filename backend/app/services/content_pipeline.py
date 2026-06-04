@@ -101,6 +101,8 @@ class ContentPipelineService:
             return self._extract_pdf(file_path)
         elif ext == ".docx":
             return self._extract_docx(file_path)
+        elif ext == ".pptx":
+            return self._extract_pptx(file_path)
         else:
             raise ValueError(f"不支持的文件格式: {ext}")
 
@@ -125,6 +127,17 @@ class ContentPipelineService:
             return "\n".join([str(e) for e in elements])
         except ImportError:
             raise ImportError("需要安装 unstructured[docx]：pip install unstructured[docx]") from None
+
+    @staticmethod
+    def _extract_pptx(file_path: str) -> str:
+        """提取 PPT 文本"""
+        try:
+            from unstructured.partition.pptx import partition_pptx
+
+            elements = partition_pptx(filename=file_path)
+            return "\n".join([str(e) for e in elements])
+        except ImportError:
+            raise ImportError("需要安装 unstructured[pptx]：pip install unstructured[pptx]") from None
 
     @staticmethod
     def _resolve_syllabus_ids(syllabus: list, node_id_map: dict[str, str]) -> list[dict]:

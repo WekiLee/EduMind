@@ -116,6 +116,10 @@ cd backend
 cp .env.example .env
 # 编辑 .env，填入数据库连接信息和 DeepSeek API Key
 conda activate edumind  # 或 python3 -m venv venv && source venv/bin/activate
+
+# 安装系统依赖（PDF 解析需要）
+sudo apt-get install -y poppler-utils
+
 pip install -r requirements.txt
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
@@ -174,6 +178,20 @@ docker compose --profile prod up -d
 | admin@edumind.cn | admin123 | 首次登录必须修改密码 |
 
 管理员登录后可在 `/admin/users` 创建普通用户，在 `/admin/config` 配置 LLM。
+
+---
+
+## 文件上传支持
+
+创建学习路径时支持上传本地文件自动生成大纲，支持的格式：
+
+| 格式 | 说明 | 依赖 |
+|------|------|------|
+| `.txt` | 纯文本文件 | 无（内置） |
+| `.md` | Markdown 文件 | 无（内置） |
+| `.pdf` | PDF 文档（含表格） | `poppler-utils` + `unstructured[pdf]` |
+| `.docx` | Word 文档 | `unstructured[docx]` |
+| `.pptx` | PowerPoint 演示文稿 | `unstructured[pptx]` |
 
 ---
 
