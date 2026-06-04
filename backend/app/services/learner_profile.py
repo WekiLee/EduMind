@@ -45,15 +45,6 @@ _FLAT_TO_NESTED = {
     "review_frequency": ("assessment", "review_frequency"),
 }
 
-_NESTED_LEAF_DEFAULTS = {
-    "font_size": "medium",
-    "color_scheme": "standard",
-    "layout_density": "standard",
-    "enable_tts": False,
-    "interrupt_policy": "anytime",
-    "session_duration_min": 25,
-}
-
 
 def normalize(profile: dict | None) -> dict:
     """

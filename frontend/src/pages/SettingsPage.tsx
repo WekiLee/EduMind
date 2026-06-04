@@ -64,11 +64,16 @@ function normalizeProfile(raw: any): LearnerProfile {
   const flatMap: Record<string, [string, string]> = {
     abstraction_level: ['content', 'abstraction_level'],
     analogy_density: ['content', 'analogy_density'],
+    example_style: ['content', 'example_style'],
     teaching_speed: ['pace', 'teaching_speed'],
     session_duration: ['pace', 'session_duration_min'],
+    session_duration_min: ['pace', 'session_duration_min'],
+    repetition_preference: ['pace', 'repetition_preference'],
     feedback_tone: ['interaction', 'feedback_tone'],
+    error_handling: ['interaction', 'error_handling'],
     quiz_style: ['assessment', 'quiz_style'],
     tolerance: ['assessment', 'tolerance'],
+    review_frequency: ['assessment', 'review_frequency'],
   };
   const out = JSON.parse(JSON.stringify(DEFAULT_PROFILE));
   for (const [key, value] of Object.entries(raw)) {
