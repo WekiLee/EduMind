@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { api } from '../services/api';
 import { useLearningStore } from '../stores/useLearningStore';
 import { useAuthStore } from '../stores/useAuthStore';
-import { BookOpen, Plus, FileText, ChevronRight, Shield, Search } from 'lucide-react';
+import { Plus, FileText, ChevronRight, Shield, Search } from 'lucide-react';
 import { LoadingSpinner, EmptyState, ErrorBanner } from '../components/common';
 
 export default function DashboardPage() {
