@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { api } from '../services/api';
-import { ArrowLeft, AlertTriangle, BarChart3, BookOpen, Clock, Target, TrendingUp } from 'lucide-react';
+import { ArrowLeft, AlertTriangle, BarChart3, BookOpen, Clock, Target, TrendingUp, Download } from 'lucide-react';
 import { LoadingSpinner, EmptyState } from '../components/common';
 
 interface ModuleMastery {
@@ -61,6 +61,21 @@ export default function ReportPage() {
     return 'bg-red-500';
   };
 
+  const handleExport = () => {
+    if (!pathId || !path) return;
+    // 使用 api 实例获取 blob 并触发下载
+    api.get(`/learning-paths/${pathId}/report/export`, { responseType: 'blob' })
+      .then((res) => {
+        const blob = res.data;
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = `学习报告_${path.topic}_${new Date().toISOString().slice(0, 10)}.md`;
+        a.click();
+        URL.revokeObjectURL(a.href);
+      })
+      .catch(console.error);
+  };
+
   if (loading) return <LoadingSpinner text="加载学习报告..." />;
   if (!report || !path) return <EmptyState icon="📊" title="暂无报告数据" description="完成一些学习节点后，报告将自动生成" />;
 
@@ -75,12 +90,18 @@ export default function ReportPage() {
         <ArrowLeft size={16} /> 返回学习
       </button>
 
-      <div className="flex items-center gap-3 mb-6">
-        <BarChart3 size={24} className="text-indigo-600" />
-        <div>
-          <h1 className="text-2xl font-bold">学习报告</h1>
-          <p className="text-gray-400 text-sm">{path.topic}</p>
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center gap-3">
+          <BarChart3 size={24} className="text-indigo-600" />
+          <div>
+            <h1 className="text-2xl font-bold">学习报告</h1>
+            <p className="text-gray-400 text-sm">{path.topic}</p>
+          </div>
         </div>
+        <button onClick={handleExport}
+          className="flex items-center gap-2 bg-white border border-gray-300 text-gray-600 px-3 py-2 rounded-lg text-sm hover:bg-gray-50 transition-colors">
+          <Download size={16} /> 导出报告
+        </button>
       </div>
 
       {/* 概览卡片：双指标 */}

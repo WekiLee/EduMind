@@ -2,8 +2,9 @@
 
 import asyncio
 from datetime import UTC, datetime, timedelta
+from urllib.parse import quote
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -188,6 +189,122 @@ async def get_learning_report(
             "in_progress_nodes": in_progress_count,
         }
     }
+
+
+@path_progress_router.get("/{path_id}/report/export")
+async def export_learning_report(
+    path_id: str,
+    user_id: str = Depends(get_current_user_id),
+    db: AsyncSession = Depends(get_db),
+):
+    """导出学习报告（Markdown 格式）"""
+    result = await db.execute(select(LearningPath).where(LearningPath.id == path_id, LearningPath.user_id == user_id))
+    path = result.scalar_one_or_none()
+    if not path:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="学习路径不存在")
+
+    result = await db.execute(
+        select(NodeProgress).where(NodeProgress.path_id == path_id, NodeProgress.user_id == user_id)
+    )
+    progress_list = [np.to_dict() for np in result.scalars().all()]
+
+    syllabus = path.syllabus or []
+    syllabus_total = sum(len(m.get("node_ids", [])) for m in syllabus)
+    completed_count = sum(1 for p in progress_list if p.get("status") == "completed")
+    total_mastery = sum(p.get("mastery", 0) or 0 for p in progress_list)
+    overall_mastery = round(total_mastery / syllabus_total, 2) if syllabus_total > 0 else 0
+    progress_pct = round(completed_count / syllabus_total * 100, 1) if syllabus_total > 0 else 0
+
+    lines = []
+    lines.append(f"# 学习报告：{path.topic}")
+    lines.append(f"")
+    lines.append(f"**学习路径**: {path.topic}")
+    lines.append(f"**领域**: {path.domain_id}")
+    lines.append(f"**状态**: {path.status}")
+    lines.append(f"**创建时间**: {path.created_at.isoformat() if path.created_at else '-'}")
+    if path.completed_at:
+        lines.append(f"**完成时间**: {path.completed_at.isoformat()}")
+    lines.append(f"")
+    lines.append(f"---")
+    lines.append(f"")
+    lines.append(f"## 概览")
+    lines.append(f"")
+    lines.append(f"| 指标 | 数值 |")
+    lines.append(f"|------|------|")
+    lines.append(f"| 整体掌握度 | {overall_mastery * 100:.0f}% |")
+    lines.append(f"| 学习进度 | {progress_pct}%（{completed_count}/{syllabus_total} 节点） |")
+    lines.append(f"| 测验次数 | {len(progress_list)} 次 |")
+    lines.append(f"")
+
+    # 模块掌握度
+    lines.append(f"## 模块掌握度")
+    lines.append(f"")
+    for module in syllabus:
+        module_node_ids = module.get("node_ids", [])
+        mp_list = [p for p in progress_list if p["node_id"] in module_node_ids]
+        total = len(mp_list)
+        avg_mastery = sum(p.get("mastery", 0) or 0 for p in mp_list) / total if total > 0 else 0
+        completed = sum(1 for p in mp_list if p.get("status") == "completed")
+        m_name = module.get("module_name", "未命名模块")
+        bar_len = 20
+        filled = int(avg_mastery * bar_len)
+        bar = "█" * filled + "░" * (bar_len - filled)
+        lines.append(f"- **{m_name}**: {completed}/{total} 节点 · 掌握度 {avg_mastery * 100:.0f}%")
+        lines.append(f"  `{bar}`")
+
+    # 薄弱节点
+    weak_node_ids = []
+    for wn in (p for p in progress_list if (p.get("mastery", 0) or 0) < 0.5 and (p.get("mastery", 0) or 0) > 0):
+        nid = wn.get("node_id", "")
+        if nid:
+            weak_node_ids.append((nid, wn.get("mastery", 0), wn.get("status", "")))
+
+    if weak_node_ids:
+        async def _fetch_title(nid: str) -> str:
+            node = await KnowledgeGraphService().get_node(nid)
+            return node.get("title", nid[:16]) if node else nid[:16]
+
+        titles = await asyncio.gather(*[_fetch_title(nid) for nid, _, _ in weak_node_ids])
+        lines.append(f"")
+        lines.append(f"## 需要加强的节点")
+        lines.append(f"")
+        for (nid, mastery, _), title in zip(weak_node_ids, titles):
+            lines.append(f"- **{title}** — 掌握度 {mastery * 100:.0f}%")
+
+    # 测验历史
+    from app.models.quiz import QuizAttempt
+
+    quiz_result = await db.execute(
+        select(QuizAttempt)
+        .where(QuizAttempt.user_id == user_id, QuizAttempt.path_id == path_id)
+        .order_by(QuizAttempt.created_at)
+    )
+    attempts = quiz_result.scalars().all()
+    if attempts:
+        lines.append(f"")
+        lines.append(f"## 测验记录")
+        lines.append(f"")
+        for a in attempts[-20:]:
+            date_str = a.created_at.strftime("%Y-%m-%d %H:%M") if a.created_at else "-"
+            mark = "✅" if a.score >= 0.6 else "❌"
+            lines.append(f"- {mark} {date_str} — {a.score * 100:.0f}%（{a.correct_count}/{a.total_questions}）")
+
+    lines.append(f"")
+    lines.append(f"---")
+    lines.append(f"_报告由 EduMind 智能导师系统自动生成_")
+
+    content = "\n".join(lines)
+    filename = f"学习报告_{path.topic}_{datetime.now(UTC).strftime('%Y%m%d')}.md"
+    ascii_name = filename.encode("ascii", errors="replace").decode("ascii")
+    safe_name = quote(filename, safe=" _.-")
+
+    return Response(
+        content=content,
+        media_type="text/markdown; charset=utf-8",
+        headers={
+            "Content-Disposition": f"attachment; filename=\"{ascii_name}\"; filename*=UTF-8''{safe_name}"
+        },
+    )
 
 
 class StartNodeRequest(BaseModel):
