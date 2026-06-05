@@ -41,6 +41,8 @@ export default function ReportPage() {
   const [report, setReport] = useState<ReportData | null>(null);
   const [path, setPath] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState('');
 
   useEffect(() => {
     if (!pathId) return;
@@ -62,8 +64,9 @@ export default function ReportPage() {
   };
 
   const handleExport = () => {
-    if (!pathId || !path) return;
-    // 使用 api 实例获取 blob 并触发下载
+    if (!pathId || !path || exporting) return;
+    setExporting(true);
+    setExportError('');
     api.get(`/learning-paths/${pathId}/report/export`, { responseType: 'blob' })
       .then((res) => {
         const blob = res.data;
@@ -73,7 +76,8 @@ export default function ReportPage() {
         a.click();
         URL.revokeObjectURL(a.href);
       })
-      .catch(console.error);
+      .catch(() => setExportError('导出失败'))
+      .finally(() => setExporting(false));
   };
 
   if (loading) return <LoadingSpinner text="加载学习报告..." />;
@@ -98,10 +102,13 @@ export default function ReportPage() {
             <p className="text-gray-400 text-sm">{path.topic}</p>
           </div>
         </div>
-        <button onClick={handleExport}
-          className="flex items-center gap-2 bg-white border border-gray-300 text-gray-600 px-3 py-2 rounded-lg text-sm hover:bg-gray-50 transition-colors">
-          <Download size={16} /> 导出报告
-        </button>
+        <div className="flex flex-col items-end gap-1">
+          <button onClick={handleExport} disabled={exporting}
+            className="flex items-center gap-2 bg-white border border-gray-300 text-gray-600 px-3 py-2 rounded-lg text-sm hover:bg-gray-50 disabled:opacity-50 transition-colors">
+            <Download size={16} /> {exporting ? '导出中...' : '导出报告'}
+          </button>
+          {exportError && <p className="text-red-500 text-xs">{exportError}</p>}
+        </div>
       </div>
 
       {/* 概览卡片：双指标 */}

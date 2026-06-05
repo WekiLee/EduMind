@@ -216,23 +216,23 @@ async def export_learning_report(
     progress_pct = round(completed_count / syllabus_total * 100, 1) if syllabus_total > 0 else 0
 
     lines = []
-    lines.append(f"# 学习报告：{path.topic}")
-    lines.append(f"")
-    lines.append(f"**学习路径**: {path.topic}")
-    lines.append(f"**领域**: {path.domain_id}")
-    lines.append(f"**状态**: {path.status}")
-    lines.append(f"**创建时间**: {path.created_at.isoformat() if path.created_at else '-'}")
+    lines.append("# 学习报告：" + path.topic)
+    lines.append("")
+    lines.append("**学习路径**：" + path.topic)
+    lines.append("**领域**: " + path.domain_id)
+    lines.append("**状态**: " + path.status)
+    lines.append("**创建时间**: " + (path.created_at.isoformat() if path.created_at else '-'))
     if path.completed_at:
-        lines.append(f"**完成时间**: {path.completed_at.isoformat()}")
-    lines.append(f"")
-    lines.append(f"---")
-    lines.append(f"")
-    lines.append(f"## 概览")
-    lines.append(f"")
-    lines.append(f"| 指标 | 数值 |")
-    lines.append(f"|------|------|")
-    lines.append(f"| 整体掌握度 | {overall_mastery * 100:.0f}% |")
-    lines.append(f"| 学习进度 | {progress_pct}%（{completed_count}/{syllabus_total} 节点） |")
+        lines.append("**完成时间**: " + path.completed_at.isoformat())
+    lines.append("")
+    lines.append("---")
+    lines.append("")
+    lines.append("## 概览")
+    lines.append("")
+    lines.append("| 指标 | 数值 |")
+    lines.append("|------|------|")
+    lines.append("| 整体掌握度 | " + f"{overall_mastery * 100:.0f}% |")
+    lines.append("| 学习进度 | " + f"{progress_pct}%（{completed_count}/{syllabus_total} 节点） |")
 
     # 查询测验记录数
     from app.models.quiz import QuizAttempt
@@ -244,12 +244,12 @@ async def export_learning_report(
     )
     attempts = quiz_result.scalars().all()
 
-    lines.append(f"| 测验次数 | {len(attempts)} 次 |")
-    lines.append(f"")
+    lines.append("| 测验次数 | " + f"{len(attempts)} 次 |")
+    lines.append("")
 
     # 模块掌握度
-    lines.append(f"## 模块掌握度")
-    lines.append(f"")
+    lines.append("## 模块掌握度")
+    lines.append("")
     for module in syllabus:
         module_node_ids = module.get("node_ids", [])
         mp_list = [p for p in progress_list if p["node_id"] in module_node_ids]
@@ -261,7 +261,7 @@ async def export_learning_report(
         filled = int(avg_mastery * bar_len)
         bar = "█" * filled + "░" * (bar_len - filled)
         lines.append(f"- **{m_name}**: {completed}/{total} 节点 · 掌握度 {avg_mastery * 100:.0f}%")
-        lines.append(f"  `{bar}`")
+        lines.append("  `" + bar + "`")
 
     # 薄弱节点
     weak_node_ids = []
@@ -276,27 +276,28 @@ async def export_learning_report(
             return node.get("title", nid[:16]) if node else nid[:16]
 
         titles = await asyncio.gather(*[_fetch_title(nid) for nid, _, _ in weak_node_ids])
-        lines.append(f"")
-        lines.append(f"## 需要加强的节点")
-        lines.append(f"")
+        lines.append("")
+        lines.append("## 需要加强的节点")
+        lines.append("")
         for (nid, mastery, _), title in zip(weak_node_ids, titles):
             lines.append(f"- **{title}** — 掌握度 {mastery * 100:.0f}%")
 
     if attempts:
-        lines.append(f"")
-        lines.append(f"## 测验记录")
-        lines.append(f"")
+        lines.append("")
+        lines.append("## 测验记录")
+        lines.append("")
         for a in attempts[-20:]:
             date_str = a.created_at.strftime("%Y-%m-%d %H:%M") if a.created_at else "-"
             mark = "✅" if a.score >= 0.6 else "❌"
             lines.append(f"- {mark} {date_str} — {a.score * 100:.0f}%（{a.correct_count}/{a.total_questions}）")
 
-    lines.append(f"")
-    lines.append(f"---")
-    lines.append(f"_报告由 EduMind 智能导师系统自动生成_")
+    lines.append("")
+    lines.append("---")
+    lines.append("_报告由 EduMind 智能导师系统自动生成_")
 
     content = "\n".join(lines)
-    filename = f"学习报告_{path.topic}_{datetime.now(UTC).strftime('%Y%m%d')}.md"
+    safe_topic = "".join(c for c in path.topic if c.isalnum() or c in " _-.,，。!！?？()（）")
+    filename = f"学习报告_{safe_topic}_{datetime.now(UTC).strftime('%Y%m%d')}.md"
     ascii_name = filename.encode("ascii", errors="replace").decode("ascii")
     safe_name = quote(filename, safe=" _.-")
 
