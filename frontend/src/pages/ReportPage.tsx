@@ -232,10 +232,10 @@ export default function ReportPage() {
         </div>
       )}
 
-      {report.quiz_history?.length === 0 && report.weak_nodes?.length === 0 && (
+      {report.total_quizzes === 0 && report.weak_nodes?.length === 0 && (
         <div className="bg-white rounded-xl border border-gray-100 p-6 text-center text-gray-400 text-sm">
           <Clock size={32} className="mx-auto mb-2" />
-          还没有足够的学习数据，继续学习后报告会自动更新
+          还没有足够的学习数据，完成节点学习后报告将自动更新
         </div>
       )}
     </div>

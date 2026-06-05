@@ -1,6 +1,7 @@
 """进度 API"""
 
-from datetime import UTC, datetime
+import asyncio
+from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
@@ -127,21 +128,23 @@ async def get_learning_report(
             }
         )
 
-    # 薄弱节点（掌握度 < 0.5），补充节点标题
-    kg = KnowledgeGraphService()
-    weak_nodes_enhanced = []
-    for wn in (p for p in progress_list if (p.get("mastery", 0) or 0) < 0.5 and p.get("mastery", 0) > 0):
+    # 薄弱节点（掌握度 < 0.5），并发补充节点标题
+    weak_node_ids = []
+    for wn in (p for p in progress_list if (p.get("mastery", 0) or 0) < 0.5 and (p.get("mastery", 0) or 0) > 0):
         nid = wn.get("node_id", "")
-        if not nid:
-            continue
-        node = await kg.get_node(nid)
-        title = node.get("title", nid[:16]) if node else nid[:16]
-        weak_nodes_enhanced.append({
-            "node_id": nid,
-            "title": title,
-            "mastery": wn.get("mastery", 0),
-            "status": wn.get("status", ""),
-        })
+        if nid:
+            weak_node_ids.append((nid, wn.get("mastery", 0), wn.get("status", "")))
+
+    async def _fetch_title(nid: str) -> str:
+        node = await KnowledgeGraphService().get_node(nid)
+        return node.get("title", nid[:16]) if node else nid[:16]
+
+    titles = await asyncio.gather(*[_fetch_title(nid) for nid, _, _ in weak_node_ids])
+
+    weak_nodes_enhanced = [
+        {"node_id": nid, "title": title, "mastery": mastery, "status": status}
+        for (nid, mastery, status), title in zip(weak_node_ids, titles)
+    ]
 
     # 时间统计（从 quiz_attempts 表获取）
     from app.models.quiz import QuizAttempt
@@ -260,8 +263,6 @@ async def complete_node(
 
     # 计算下次复习时间
     interval_days = AssessmentService.compute_next_review(req.mastery, np.attempt_count)
-    from datetime import timedelta
-
     np.next_review = datetime.now(UTC) + timedelta(days=interval_days)
 
     await db.flush()
