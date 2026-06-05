@@ -233,7 +233,18 @@ async def export_learning_report(
     lines.append(f"|------|------|")
     lines.append(f"| 整体掌握度 | {overall_mastery * 100:.0f}% |")
     lines.append(f"| 学习进度 | {progress_pct}%（{completed_count}/{syllabus_total} 节点） |")
-    lines.append(f"| 测验次数 | {len(progress_list)} 次 |")
+
+    # 查询测验记录数
+    from app.models.quiz import QuizAttempt
+
+    quiz_result = await db.execute(
+        select(QuizAttempt)
+        .where(QuizAttempt.user_id == user_id, QuizAttempt.path_id == path_id)
+        .order_by(QuizAttempt.created_at)
+    )
+    attempts = quiz_result.scalars().all()
+
+    lines.append(f"| 测验次数 | {len(attempts)} 次 |")
     lines.append(f"")
 
     # 模块掌握度
@@ -271,15 +282,6 @@ async def export_learning_report(
         for (nid, mastery, _), title in zip(weak_node_ids, titles):
             lines.append(f"- **{title}** — 掌握度 {mastery * 100:.0f}%")
 
-    # 测验历史
-    from app.models.quiz import QuizAttempt
-
-    quiz_result = await db.execute(
-        select(QuizAttempt)
-        .where(QuizAttempt.user_id == user_id, QuizAttempt.path_id == path_id)
-        .order_by(QuizAttempt.created_at)
-    )
-    attempts = quiz_result.scalars().all()
     if attempts:
         lines.append(f"")
         lines.append(f"## 测验记录")
