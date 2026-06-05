@@ -12,6 +12,7 @@ from app.core.security import get_current_user_id
 from app.models.path import LearningPath
 from app.models.progress import NodeProgress
 from app.services.assessment import AssessmentService
+from app.services.knowledge_graph import KnowledgeGraphService
 
 router = APIRouter(prefix="/nodes", tags=["进度"])
 path_progress_router = APIRouter(prefix="/learning-paths", tags=["进度"])
@@ -126,8 +127,21 @@ async def get_learning_report(
             }
         )
 
-    # 薄弱节点（掌握度 < 0.5）
-    weak_nodes = [p for p in progress_list if (p.get("mastery", 0) or 0) < 0.5 and p.get("mastery", 0) > 0]
+    # 薄弱节点（掌握度 < 0.5），补充节点标题
+    kg = KnowledgeGraphService()
+    weak_nodes_enhanced = []
+    for wn in (p for p in progress_list if (p.get("mastery", 0) or 0) < 0.5 and p.get("mastery", 0) > 0):
+        nid = wn.get("node_id", "")
+        if not nid:
+            continue
+        node = await kg.get_node(nid)
+        title = node.get("title", nid[:16]) if node else nid[:16]
+        weak_nodes_enhanced.append({
+            "node_id": nid,
+            "title": title,
+            "mastery": wn.get("mastery", 0),
+            "status": wn.get("status", ""),
+        })
 
     # 时间统计（从 quiz_attempts 表获取）
     from app.models.quiz import QuizAttempt
@@ -155,13 +169,20 @@ async def get_learning_report(
     total_mastery = sum(p.get("mastery", 0) or 0 for p in progress_list)
     overall_mastery = round(total_mastery / syllabus_total, 2) if syllabus_total > 0 else 0
 
+    # 整体进度统计
+    completed_count = sum(1 for p in progress_list if p.get("status") == "completed")
+    in_progress_count = sum(1 for p in progress_list if p.get("status") == "learning")
+
     return {
         "data": {
             "module_mastery": module_mastery,
-            "weak_nodes": weak_nodes[:10],
+            "weak_nodes": weak_nodes_enhanced[:10],
             "quiz_history": quiz_history,
             "total_quizzes": len(attempts),
             "overall_mastery": overall_mastery,
+            "total_nodes": syllabus_total,
+            "completed_nodes": completed_count,
+            "in_progress_nodes": in_progress_count,
         }
     }
 
