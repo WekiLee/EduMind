@@ -13,6 +13,7 @@ from app.core.database import get_db
 from app.core.security import get_current_user_id
 from app.models.path import LearningPath
 from app.models.progress import NodeProgress
+from app.models.quiz import QuizAttempt
 from app.services.assessment import AssessmentService
 from app.services.knowledge_graph import KnowledgeGraphService
 
@@ -148,8 +149,6 @@ async def get_learning_report(
     ]
 
     # 时间统计（从 quiz_attempts 表获取）
-    from app.models.quiz import QuizAttempt
-
     quiz_result = await db.execute(
         select(QuizAttempt)
         .where(
@@ -235,8 +234,6 @@ async def export_learning_report(
     lines.append("| 学习进度 | " + f"{progress_pct}%（{completed_count}/{syllabus_total} 节点） |")
 
     # 查询测验记录数
-    from app.models.quiz import QuizAttempt
-
     quiz_result = await db.execute(
         select(QuizAttempt)
         .where(QuizAttempt.user_id == user_id, QuizAttempt.path_id == path_id)
