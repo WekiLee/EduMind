@@ -12,6 +12,7 @@ import AdminConfigPage from './pages/admin/ConfigPage';
 import AdminKnowledgeGraphPage from './pages/admin/KnowledgeGraphPage';
 import ReportPage from './pages/ReportPage';
 import Layout from './components/common/Layout';
+import { ToastContainer, LoadingSpinner } from './components/common';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const token = useAuthStore((s) => s.token);
@@ -19,17 +20,12 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const loadUser = useAuthStore((s) => s.loadUser);
   const location = useLocation();
 
-  // 页面刷新后从 Token 恢复用户信息
   useEffect(() => {
-    if (token && !user) {
-      loadUser();
-    }
+    if (token && !user) { loadUser(); }
   }, [token, user]);
 
   if (!token) return <Navigate to="/login" replace />;
-  // 等待用户信息加载
-  if (!user) return <div className="flex items-center justify-center h-screen text-gray-400">加载中...</div>;
-  // 首次登录必须改密码（已在设置页时不要死循环）
+  if (!user) return <LoadingSpinner text="验证身份..." />;
   if (user.must_change_password && !location.pathname.startsWith('/settings')) {
     return <Navigate to="/settings?force_password=1" replace />;
   }
@@ -51,7 +47,9 @@ function HomeRedirect() {
 
 export default function App() {
   return (
-    <Routes>
+    <>
+      <ToastContainer />
+      <Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
       <Route
@@ -75,5 +73,6 @@ export default function App() {
         <Route path="admin/knowledge-graph" element={<AdminRoute><AdminKnowledgeGraphPage /></AdminRoute>} />
       </Route>
     </Routes>
+    </>
   );
 }

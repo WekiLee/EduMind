@@ -47,6 +47,7 @@ export default function LearnPage() {
   const [isRecording, setIsRecording] = useState(false);
   const [quizGenerating, setQuizGenerating] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const quizSectionRef = useRef<HTMLDivElement>(null);
 
   // 加载路径（切换路径时先清空旧数据）
   useEffect(() => {
@@ -62,6 +63,13 @@ export default function LearnPage() {
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [chatMessages]);
+
+  // 测验生成后自动滚动到答题区
+  useEffect(() => {
+    if (quizQuestions.length > 0) {
+      setTimeout(() => quizSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
+    }
+  }, [quizQuestions]);
 
   const allNodes = currentPath?.syllabus?.flatMap((m) => m.nodes || []) || [];
   const firstIncompleteNode = allNodes.find((n) => n.status !== 'completed');
@@ -275,13 +283,14 @@ export default function LearnPage() {
         )}
 
         {/* Quiz 面板 */}
-        {quizGenerating ? (
-          <div className="p-4 border-b border-gray-200 bg-white flex items-center justify-center gap-2 text-gray-400 text-sm">
-            <span className="w-4 h-4 border-2 border-indigo-300 border-t-indigo-600 rounded-full animate-spin" />
-            正在生成题目...
-          </div>
-        ) : quizQuestions.length > 0 && (
-          <div className="p-4 border-b border-gray-200 bg-white">
+        {(quizGenerating || quizQuestions.length > 0) && (
+          <div ref={quizSectionRef} className="p-4 border-b border-gray-200 bg-white">
+            {quizGenerating ? (
+              <div className="flex items-center justify-center gap-2 text-gray-400 text-sm py-4">
+                <span className="w-4 h-4 border-2 border-indigo-300 border-t-indigo-600 rounded-full animate-spin" />
+                正在生成题目...
+              </div>
+            ) : (<>
             <h3 className="font-medium mb-3">📝 知识测验</h3>
             <div className="space-y-4">
               {quizQuestions.map((q, qi) => (
@@ -371,6 +380,7 @@ export default function LearnPage() {
                 </div>
               )}
             </div>
+            </>)}
           </div>
         )}
 

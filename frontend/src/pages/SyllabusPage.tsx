@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { api } from '../services/api';
 import { ArrowLeft, GripVertical, Save } from 'lucide-react';
+import { LoadingSpinner } from '../components/common';
 import {
   DndContext, closestCenter, PointerSensor, useSensor, useSensors,
   type DragEndEvent,
@@ -98,7 +99,7 @@ export default function SyllabusPage() {
     }
   };
 
-  if (!path) return <div className="p-6 text-gray-400">加载中...</div>;
+  if (!path) return <LoadingSpinner text="加载大纲..." />;
 
   return (
     <div className="p-6 max-w-3xl mx-auto">

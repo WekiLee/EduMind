@@ -1,5 +1,52 @@
 /** 通用加载/空状态组件 */
 
+import { useEffect, useState } from 'react';
+
+// ── Toast 通知 ──
+
+let toastId = 0;
+let toastListeners: Array<(toasts: Toast[]) => void> = [];
+let toastState: Toast[] = [];
+
+export interface Toast {
+  id: number;
+  type: 'success' | 'error' | 'info';
+  message: string;
+}
+
+export function showToast(type: Toast['type'], message: string) {
+  const id = ++toastId;
+  toastState = [...toastState, { id, type, message }];
+  toastListeners.forEach((fn) => fn(toastState));
+  setTimeout(() => {
+    toastState = toastState.filter((t) => t.id !== id);
+    toastListeners.forEach((fn) => fn(toastState));
+  }, 3500);
+}
+
+export function ToastContainer() {
+  const [toasts, setToasts] = useState<Toast[]>([]);
+  useEffect(() => {
+    toastListeners.push(setToasts);
+    return () => { toastListeners = toastListeners.filter((fn) => fn !== setToasts); };
+  }, []);
+  if (toasts.length === 0) return null;
+  return (
+    <div className="fixed top-4 right-4 z-[100] flex flex-col gap-2 max-w-sm">
+      {toasts.map((t) => (
+        <div key={t.id}
+          className={`px-4 py-3 rounded-lg shadow-lg text-sm text-white animate-slide-in ${
+            t.type === 'success' ? 'bg-green-600' : t.type === 'error' ? 'bg-red-600' : 'bg-indigo-600'
+          }`}>
+          {t.message}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ── Loading / Empty / Error ──
+
 export function LoadingSpinner({ text = '加载中...' }: { text?: string }) {
   return (
     <div className="flex items-center justify-center py-12">
