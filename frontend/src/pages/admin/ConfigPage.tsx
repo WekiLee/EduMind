@@ -69,7 +69,7 @@ export default function AdminConfigPage() {
             <label className="block text-sm font-medium text-gray-700 mb-1">API Key</label>
             <input type="password" value={config.llm_api_key || ''}
               onChange={(e) => setConfig({ ...config, llm_api_key: e.target.value })}
-              placeholder="sk-..." className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+              placeholder={config.llm_api_key_masked || '输入 API Key...'} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
             {config.llm_api_key_masked && !config.llm_api_key && (
               <p className="text-xs text-gray-400 mt-1">已配置：{config.llm_api_key_masked}</p>
             )}
