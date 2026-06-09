@@ -1,5 +1,6 @@
 """WebSocket 教学对话 —— 实时文字聊天，支持断线重连上下文恢复"""
 
+                # ── 加载路径级 Learner Profile 覆盖（仅首次） ──
 import base64
 import json
 from datetime import UTC, datetime
@@ -15,6 +16,11 @@ from app.services.domain_profile import load_domain_profile
 from app.services.knowledge_graph import KnowledgeGraphService
 from app.services.voice import synthesize_speech, transcribe_audio
 
+# ── 路径级 Profile 覆盖标记（避免重复加载）──
+_profile_override_loaded = object()  # 简单对象，可附加属性
+
+# ── 路径级 Profile 覆盖标记（避免重复加载）──
+_profile_override_loaded = object()
 router = APIRouter()
 
 
@@ -175,20 +181,22 @@ async def chat_websocket(websocket: WebSocket, token: str):
 
                 current_node_id = node_id
 
-                # ── 加载路径级 Learner Profile 覆盖 ──
-                if path_id and not hasattr(update_path_profile_override, '_override_loaded'):
+                # ── 加载路径级 Learner Profile 覆盖（仅首次） ──
+                if path_id and not getattr(_profile_override_loaded, '_loaded'):
                     try:
                         from app.models.path import LearningPath
-                        from app.services.learner_profile import normalize as normalize_p
-                        p_res = await db.execute(select(LearningPath).where(LearningPath.id == path_id, LearningPath.user_id == user_id))
-                        p = p_res.scalar_one_or_none()
-                        if p and p.learner_profile_override:
-                            merged = dict(learner_profile)
-                            for group, fields in p.learner_profile_override.items():
-                                if isinstance(fields, dict):
-                                    merged[group] = {**merged.get(group, {}), **fields}
-                            learner_profile = merged
-                        update_path_profile_override._override_loaded = True
+                        async with async_session_factory() as pdb:
+                            p_res = await pdb.execute(
+                                select(LearningPath).where(LearningPath.id == path_id, LearningPath.user_id == user_id)
+                            )
+                            p = p_res.scalar_one_or_none()
+                            if p and p.learner_profile_override:
+                                merged = dict(learner_profile)
+                                for group, fields in p.learner_profile_override.items():
+                                    if isinstance(fields, dict):
+                                        merged[group] = {**merged.get(group, {}), **fields}
+                                learner_profile = merged
+                        _profile_override_loaded._loaded = True
                     except Exception:
                         pass
 
@@ -344,4 +352,9 @@ async def chat_websocket(websocket: WebSocket, token: str):
                 if sess:
                     sess.ended_at = datetime.now(UTC)
                     await db.commit()
+
+
+
+
+
 
