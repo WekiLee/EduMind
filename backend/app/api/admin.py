@@ -10,6 +10,7 @@ from app.core.security import get_current_user_id, hash_password
 from app.llm.adapter import LLMAdapter
 from app.models.path import LearningPath
 from app.models.progress import NodeProgress
+from app.models.quiz import ChatMessage, ChatSession, QuizAttempt
 from app.models.system_config import SystemConfig
 from app.models.user import User
 from app.services.knowledge_graph import KnowledgeGraphService
@@ -177,8 +178,6 @@ async def delete_user(
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="不能删除最后一个管理员")
 
     # 级联删除相关数据
-    from app.models.path import LearningPath
-    from app.models.quiz import ChatMessage, ChatSession, QuizAttempt
 
     for table in [ChatSession, QuizAttempt, NodeProgress, LearningPath]:
         await db.execute(table.__table__.delete().where(table.user_id == user_id))  # type: ignore[attr-defined]
