@@ -9,6 +9,7 @@ import SyllabusPage from './pages/SyllabusPage';
 import SettingsPage from './pages/SettingsPage';
 import AdminUsersPage from './pages/admin/UsersPage';
 import AdminConfigPage from './pages/admin/ConfigPage';
+import AdminKnowledgeGraphPage from './pages/admin/KnowledgeGraphPage';
 import ReportPage from './pages/ReportPage';
 import Layout from './components/common/Layout';
 
@@ -71,6 +72,7 @@ export default function App() {
         {/* 管理员路由 */}
         <Route path="admin/users" element={<AdminRoute><AdminUsersPage /></AdminRoute>} />
         <Route path="admin/config" element={<AdminRoute><AdminConfigPage /></AdminRoute>} />
+        <Route path="admin/knowledge-graph" element={<AdminRoute><AdminKnowledgeGraphPage /></AdminRoute>} />
       </Route>
     </Routes>
   );

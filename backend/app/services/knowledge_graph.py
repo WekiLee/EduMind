@@ -249,6 +249,23 @@ class KnowledgeGraphService:
             {"id": node_id},
         )
 
+    async def update_node(self, node_id: str, node_data: dict) -> bool:
+        """更新知识点节点属性，返回是否找到并更新"""
+        # 支持更新的字段
+        allowed_fields = {"title", "summary", "content", "difficulty", "node_type",
+                          "examples", "code_snippets", "ref_links", "confidence"}
+        set_clauses = []
+        params = {"id": node_id}
+        for field in allowed_fields:
+            if field in node_data:
+                set_clauses.append(f"n.{field} = ${field}")
+                params[field] = node_data[field]
+        if not set_clauses:
+            return False
+        query = "MATCH (n:KnowledgeNode {id: $id}) SET " + ", ".join(set_clauses) + " RETURN n"
+        results = await self._run(query, params)
+        return len(results) > 0
+
     # ── 工具方法 ──
 
     @staticmethod

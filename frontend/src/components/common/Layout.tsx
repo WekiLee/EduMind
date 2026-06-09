@@ -1,7 +1,7 @@
 import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useLearningStore } from '../../stores/useLearningStore';
-import { BookOpen, LayoutDashboard, Settings, LogOut, Shield, Users, Sliders, ChevronRight } from 'lucide-react';
+import { BookOpen, LayoutDashboard, Settings, LogOut, Shield, Users, Sliders, ChevronRight, GitBranch } from 'lucide-react';
 
 export default function Layout() {
   const navigate = useNavigate();
@@ -41,6 +41,10 @@ export default function Layout() {
               <NavLink to="/admin/config"
                 className={({ isActive }) => `flex items-center gap-2 px-3 py-2 rounded-lg text-sm ${isActive ? 'bg-indigo-50 text-indigo-600 font-medium' : 'text-gray-600 hover:bg-gray-50'}`}>
                 <Sliders size={18} /> 系统配置
+              </NavLink>
+              <NavLink to="/admin/knowledge-graph"
+                className={({ isActive }) => `flex items-center gap-2 px-3 py-2 rounded-lg text-sm ${isActive ? 'bg-indigo-50 text-indigo-600 font-medium' : 'text-gray-600 hover:bg-gray-50'}`}>
+                <GitBranch size={18} /> 知识图谱
               </NavLink>
             </>
           ) : (

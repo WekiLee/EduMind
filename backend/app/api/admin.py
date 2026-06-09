@@ -12,6 +12,7 @@ from app.models.path import LearningPath
 from app.models.progress import NodeProgress
 from app.models.system_config import SystemConfig
 from app.models.user import User
+from app.services.knowledge_graph import KnowledgeGraphService
 
 router = APIRouter(prefix="/admin", tags=["管理员"])
 
@@ -293,3 +294,70 @@ async def get_stats(
             "domain_stats": domain_stats,
         }
     }
+
+
+class UpdateNodeRequest(BaseModel):
+    title: str | None = None
+    summary: str | None = None
+    content: str | None = None
+    difficulty: str | None = None
+    node_type: str | None = None
+    examples: list[str] | None = None
+    code_snippets: list[str] | None = None
+    ref_links: list[dict] | None = None
+
+
+@router.get("/learning-paths")
+async def admin_list_paths(
+    page: int = 1,
+    size: int = 50,
+    admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """管理员列出所有学习路径"""
+    count_result = await db.execute(select(func.count(LearningPath.id)))
+    total = count_result.scalar()
+    result = await db.execute(
+        select(LearningPath).order_by(LearningPath.created_at.desc()).offset((page - 1) * size).limit(size)
+    )
+    paths = result.scalars().all()
+    return {"data": [p.to_dict() for p in paths], "total": total, "page": page, "size": size}
+
+
+@router.get("/learning-paths/{path_id}/nodes")
+async def admin_list_nodes(
+    path_id: str,
+    admin: User = Depends(require_admin),
+):
+    """管理员获取路径的所有节点"""
+    kg = KnowledgeGraphService()
+    nodes = await kg.get_path_nodes(path_id)
+    return {"data": nodes}
+
+
+@router.put("/nodes/{node_id}")
+async def admin_update_node(
+    node_id: str,
+    req: UpdateNodeRequest,
+    admin: User = Depends(require_admin),
+):
+    """管理员更新节点属性"""
+    kg = KnowledgeGraphService()
+    data = {k: v for k, v in req.model_dump().items() if v is not None}
+    if not data:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="没有需要更新的字段")
+    success = await kg.update_node(node_id, data)
+    if not success:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="节点不存在")
+    node = await kg.get_node(node_id)
+    return {"data": node}
+
+
+@router.delete("/nodes/{node_id}", status_code=204)
+async def admin_delete_node(
+    node_id: str,
+    admin: User = Depends(require_admin),
+):
+    """管理员删除节点"""
+    kg = KnowledgeGraphService()
+    await kg.delete_node(node_id)
