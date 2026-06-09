@@ -328,8 +328,12 @@ async def admin_list_paths(
 async def admin_list_nodes(
     path_id: str,
     admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
 ):
     """管理员获取路径的所有节点"""
+    result = await db.execute(select(LearningPath).where(LearningPath.id == path_id))
+    if not result.scalar_one_or_none():
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="学习路径不存在")
     kg = KnowledgeGraphService()
     nodes = await kg.get_path_nodes(path_id)
     return {"data": nodes}
@@ -343,7 +347,7 @@ async def admin_update_node(
 ):
     """管理员更新节点属性"""
     kg = KnowledgeGraphService()
-    data = {k: v for k, v in req.model_dump().items() if v is not None}
+    data = req.model_dump(exclude_none=True)
     if not data:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="没有需要更新的字段")
     success = await kg.update_node(node_id, data)
@@ -360,4 +364,7 @@ async def admin_delete_node(
 ):
     """管理员删除节点"""
     kg = KnowledgeGraphService()
+    existing = await kg.get_node(node_id)
+    if not existing:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="节点不存在")
     await kg.delete_node(node_id)

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from '../../services/api';
-import { Search, Edit3, Trash2, Save, X, ChevronRight, AlertTriangle } from 'lucide-react';
+import { Search, Edit3, Trash2, Save, X, AlertTriangle } from 'lucide-react';
 
 interface LearningPath {
   id: string;
@@ -102,7 +102,6 @@ export default function AdminKnowledgeGraphPage() {
   );
 
   const selectedPath = paths.find((p) => p.id === selectedPathId);
-  const moduleOrder = ['intro', 'intermediate', 'advanced'];
   const difficultyLabel = (d: string) => ({ intro: '入门', intermediate: '中级', advanced: '高级' }[d] || d);
 
   return (
