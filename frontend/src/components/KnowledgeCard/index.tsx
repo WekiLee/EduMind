@@ -4,6 +4,7 @@ import katex from 'katex';
 
 // 确保 KaTeX CSS 被加载
 import 'katex/dist/katex.min.css';
+import Editor from '@monaco-editor/react';
 
 interface KnowledgeNode {
   id: string;
@@ -89,7 +90,68 @@ function MathCard({ node }: KnowledgeCardProps) {
   );
 }
 
-/** 编程卡片（代码块自动高亮 + 语言标签） */
+
+/** Monaco 代码块 —— 语法高亮 + 行号 + 语言自动检测 */
+function MonacoCodeBlock({ code, language = '' }: { code: string; language?: string }) {
+  const lang = language || _detectLanguage(code);
+  return (
+    <div className="my-2 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700">
+      <div className="bg-gray-100 dark:bg-gray-800 px-3 py-1 text-xs text-gray-500 dark:text-gray-400 border-b border-gray-200 dark:border-gray-700 flex items-center gap-2">
+        <span className="font-medium">{lang || 'code'}</span>
+      </div>
+      <Editor
+        height={Math.max(60, Math.min(code.split('\n').length * 20, 400))}
+        defaultLanguage={lang || 'plaintext'}
+        value={code}
+        theme="vs-dark"
+        options={{
+          readOnly: true,
+          minimap: { enabled: false },
+          lineNumbers: 'on',
+          scrollBeyondLastLine: false,
+          fontSize: 12,
+          padding: { top: 8 },
+          renderWhitespace: 'selection',
+          tabSize: 2,
+        }}
+      />
+    </div>
+  );
+}
+
+/** 从代码内容猜测语言 */
+function _detectLanguage(code: string): string {
+  if (/^(import |from |def |class |print\()/m.test(code)) return 'python';
+  if (/^(const |let |var |function |import |export |interface |type )/m.test(code) || code.includes('=>')) return 'typescript';
+  if (/^(#include|int main|printf|cout)/m.test(code)) return 'cpp';
+  if (/^(public class|private |protected |void main)/m.test(code)) return 'java';
+  if (/^(<!DOCTYPE|<html|<div)/i.test(code)) return 'html';
+  if (/^{[^}]+:[^}]+;/.test(code)) return 'css';
+  if (/^SELECT|^INSERT|^CREATE|^ALTER/i.test(code.trim())) return 'sql';
+  if (/^#!/m.test(code)) return 'bash';
+  return 'plaintext';
+}
+
+/** modified renderContent —— 编程域也使用 Monaco */
+function renderProgrammingContent(text: string) {
+  if (!text) return null;
+  const parts = text.split(/(```[\s\S]*?```)/g);
+  return parts.map((part, i) => {
+    const codeMatch = part.match(/^```(\w*)\n?([\s\S]*?)```$/);
+    if (codeMatch) {
+      return <MonacoCodeBlock key={i} code={codeMatch[2]} language={codeMatch[1]} />;
+    }
+    if (part.includes('$')) {
+      const html = renderLatex(part);
+      return <div key={i} className="whitespace-pre-wrap text-sm leading-relaxed mb-2" dangerouslySetInnerHTML={{ __html: html }} />;
+    }
+    return (
+      <div key={i} className="whitespace-pre-wrap text-sm leading-relaxed mb-2">{part}</div>
+    );
+  });
+}
+
+/** 编程卡片（Monaco 编辑器代码块） */
 function ProgrammingCard({ node }: KnowledgeCardProps) {
   return <div>{renderContent(node.content)}</div>;
 }
@@ -151,22 +213,7 @@ export default function KnowledgeCard({ node }: KnowledgeCardProps) {
       <h2 className="text-lg font-bold mb-1 text-gray-900 dark:text-gray-100">{node.title}</h2>
       <p className="text-gray-500 dark:text-gray-400 text-sm mb-2">{node.summary}</p>
       <CardTemplate node={node} />
-      {node.examples && node.examples.length > 0 && (
-        <div className="mt-3 pt-3 border-t border-gray-100">
-          <p className="text-xs font-medium text-gray-500 mb-2">📎 示例</p>
-          {node.examples.map((ex: string, i: number) => (
-            <pre key={i} className="bg-gray-900 text-green-400 p-3 rounded-lg overflow-x-auto my-1 text-xs leading-relaxed">{ex}</pre>
-          ))}
-        </div>
-      )}
-      {node.code_snippets && node.code_snippets.length > 0 && (
-        <div className="mt-3 pt-3 border-t border-gray-100">
-          <p className="text-xs font-medium text-gray-500 mb-2">💻 代码</p>
-          {node.code_snippets.map((code: string, i: number) => (
-            <pre key={i} className="bg-gray-900 text-green-400 p-3 rounded-lg overflow-x-auto my-1 text-xs leading-relaxed">{code}</pre>
-          ))}
-        </div>
-      )}
     </div>
   );
 }
+

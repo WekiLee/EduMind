@@ -25,7 +25,8 @@
     "@dnd-kit/utilities": "^3.2.2",
     "lucide-react": "^0.441.0",
     "clsx": "^2.1.0",
-    "tailwind-merge": "^2.5.0"
+    "tailwind-merge": "^2.5.0",
+    "@monaco-editor/react": "^4.6.0"
   },
   "devDependencies": {
     "@types/react": "^18.3.0",
