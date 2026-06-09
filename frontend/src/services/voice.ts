@@ -135,7 +135,6 @@ let _activationStream: MediaStream | null = null;
 let _activationCtx: AudioContext | null = null;
 let _activationAnalyser: AnalyserNode | null = null;
 let _activationAnimId: number | null = null;
-let _activationCalm: number | null = null;
 let _activationFloor: number | null = null;
 let _activationCallback: ((base64: string) => void) | null = null;
 let _activationRunning = false;
@@ -170,9 +169,6 @@ export async function startVoiceActivation(onTranscribe: (base64: string) => voi
 /** 监听循环：检测说话 → 触发录音 → 录音完成 → 回到监听 */
 function _listenLoop() {
   if (!_activationRunning) return;
-
-  // 重置
-  _activationCalm = null;
 
   // 先做短时间的 VAD 监听 (最多等 30s 无人说话则重启)
   _vadDetectSpeech((base64) => {
@@ -278,18 +274,17 @@ function _cleanupActivation() {
   if (_activationCtx) { _activationCtx.close().catch(() => {}); _activationCtx = null; }
   if (_activationStream) { _activationStream.getTracks().forEach((t) => t.stop()); _activationStream = null; }
   _activationAnalyser = null;
-  _activationCalm = null;
   _activationFloor = null;
 }
 
 /** 停止语音唤醒模式 */
 export function stopVoiceActivation() {
   _activationRunning = false;
-  if (_activationAnimId) { cancelAnimationFrame(_activationAnimId); _activationAnimId = null; }
-  if (_activationCtx) { _activationCtx.close().catch(() => {}); _activationCtx = null; }
-  if (_activationStream) { _activationStream.getTracks().forEach((t) => t.stop()); _activationStream = null; }
-  _activationAnalyser = null;
   _activationCallback = null;
-  _activationCalm = null;
-  _activationFloor = null;
+  _cleanupActivation();
 }
+
+
+
+
+
