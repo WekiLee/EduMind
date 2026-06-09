@@ -35,7 +35,7 @@ export function ToastContainer() {
     <div className="fixed top-4 right-4 z-[100] flex flex-col gap-2 max-w-sm">
       {toasts.map((t) => (
         <div key={t.id}
-          className={`px-4 py-3 rounded-lg shadow-lg text-sm text-white animate-slide-in ${
+          className={`px-4 py-3 rounded-lg shadow-lg text-sm text-white ${
             t.type === 'success' ? 'bg-green-600' : t.type === 'error' ? 'bg-red-600' : 'bg-indigo-600'
           }`}>
           {t.message}
