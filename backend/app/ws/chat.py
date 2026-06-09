@@ -175,6 +175,23 @@ async def chat_websocket(websocket: WebSocket, token: str):
 
                 current_node_id = node_id
 
+                # ── 加载路径级 Learner Profile 覆盖 ──
+                if path_id and not hasattr(update_path_profile_override, '_override_loaded'):
+                    try:
+                        from app.models.path import LearningPath
+                        from app.services.learner_profile import normalize as normalize_p
+                        p_res = await db.execute(select(LearningPath).where(LearningPath.id == path_id, LearningPath.user_id == user_id))
+                        p = p_res.scalar_one_or_none()
+                        if p and p.learner_profile_override:
+                            merged = dict(learner_profile)
+                            for group, fields in p.learner_profile_override.items():
+                                if isinstance(fields, dict):
+                                    merged[group] = {**merged.get(group, {}), **fields}
+                            learner_profile = merged
+                        update_path_profile_override._override_loaded = True
+                    except Exception:
+                        pass
+
                 # ── 获取节点信息 ──
                 kg = KnowledgeGraphService()
                 node = await kg.get_node(node_id)
