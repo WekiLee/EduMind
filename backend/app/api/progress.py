@@ -96,6 +96,41 @@ async def get_path_progress(
 
 
 @path_progress_router.get("/{path_id}/report")
+@path_progress_router.get("/{path_id}/report/trend")
+async def get_mastery_trend(
+    path_id: str,
+    user_id: str = Depends(get_current_user_id),
+    db: AsyncSession = Depends(get_db),
+    limit: int = 20,
+):
+    """获取掌握度趋势数据（快照列表）"""
+    from sqlalchemy import select
+
+    from app.models.snapshot import MasterySnapshot
+
+    result = await db.execute(
+        select(MasterySnapshot)
+        .where(
+            MasterySnapshot.user_id == user_id,
+            MasterySnapshot.path_id == path_id,
+        )
+        .order_by(MasterySnapshot.recorded_at.asc())
+        .limit(limit)
+    )
+    snapshots = result.scalars().all()
+    return {
+        "data": [
+            {
+                "recorded_at": s.recorded_at.isoformat() if s.recorded_at else None,
+                "overall_mastery": s.snapshot.get("overall_mastery", 0),
+                "completed_nodes": s.snapshot.get("completed_nodes", 0),
+                "total_nodes": s.snapshot.get("total_nodes", 0),
+            }
+            for s in snapshots
+        ]
+    }
+
+
 async def get_learning_report(
     path_id: str,
     user_id: str = Depends(get_current_user_id),
@@ -384,3 +419,5 @@ async def complete_node(
 
     await db.flush()
     return {"data": np.to_dict()}
+
+

@@ -138,3 +138,4 @@ async def submit_quiz(
                 result["mastery_update"] = np.mastery
 
     return {"data": result}
+

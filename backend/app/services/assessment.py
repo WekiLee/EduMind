@@ -194,3 +194,58 @@ class AssessmentService:
         self.db.add(attempt)
         await self.db.flush()
         return attempt
+
+    # ── 掌握度快照 ──
+
+    @staticmethod
+    async def take_mastery_snapshot(
+        db: AsyncSession,
+        user_id: str,
+        path_id: str,
+    ):
+        """记录当前路径的掌握度快照（用于趋势分析）"""
+        try:
+            from sqlalchemy import select
+
+            from app.models.progress import NodeProgress
+            from app.models.snapshot import MasterySnapshot
+
+            result = await db.execute(
+                select(NodeProgress).where(
+                    NodeProgress.user_id == user_id,
+                    NodeProgress.path_id == path_id,
+                )
+            )
+            progress_list = [np.to_dict() for np in result.scalars().all()]
+
+            # 构建快照：按节点粒度记录 mastery，同时计算模块聚合
+            snapshot = {
+                "overall_mastery": 0.0,
+                "completed_nodes": 0,
+                "total_nodes": len(progress_list),
+                "nodes": [],
+            }
+            if progress_list:
+                total_mastery = 0
+                for p in progress_list:
+                    m = p.get("mastery", 0) or 0
+                    total_mastery += m
+                    snapshot["nodes"].append({
+                        "node_id": p.get("node_id", ""),
+                        "mastery": m,
+                        "status": p.get("status", ""),
+                    })
+                    if p.get("status") == "completed":
+                        snapshot["completed_nodes"] += 1
+                snapshot["overall_mastery"] = round(total_mastery / len(progress_list), 2)
+
+            snap = MasterySnapshot(
+                user_id=user_id,
+                path_id=path_id,
+                snapshot=snapshot,
+            )
+            db.add(snap)
+            await db.flush()
+        except Exception as e:
+            print(f"  ⚠️  掌握度快照记录跳过: {e}")
+
