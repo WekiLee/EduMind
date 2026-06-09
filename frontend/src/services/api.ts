@@ -111,7 +111,8 @@ export function playAudioReply(base64Data: string) {
     const binary = atob(base64Data);
     const bytes = new Uint8Array(binary.length);
     for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-    const blob = new Blob([bytes], { type: 'audio/mpeg' });
+    // 浏览器自动识别 WAV/MP3 格式，无需指定 MIME
+    const blob = new Blob([bytes]);
     const url = URL.createObjectURL(blob);
     const audio = new Audio(url);
     audio.onended = () => URL.revokeObjectURL(url);

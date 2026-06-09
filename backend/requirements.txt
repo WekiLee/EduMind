@@ -22,6 +22,8 @@ unstructured[pdf,docx,pptx,md]>=0.15
 
 # 语音
 edge-tts>=6.0
+numpy>=1.24
+# kokoro>=0.9  # ONNX TTS（可选，替代 edge-tts，需额外安装）
 # faster-whisper 可选（体积较大），首次使用需先安装：
 # pip install faster-whisper
 

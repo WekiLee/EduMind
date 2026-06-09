@@ -41,6 +41,7 @@ class Settings(BaseSettings):
 
     # ── 语音 ──
     whisper_model_size: str = "base"
+    tts_provider: str = "edge-tts"  # edge-tts | kokoro
 
     # ── 搜索编排 ──
     search_provider: str = "duckduckgo"
