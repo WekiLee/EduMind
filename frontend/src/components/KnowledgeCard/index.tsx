@@ -81,35 +81,49 @@ function DefaultCard({ node }: KnowledgeCardProps) {
 function MathCard({ node }: KnowledgeCardProps) {
   return (
     <div>
-      <div className="bg-blue-50 border border-blue-200 rounded p-2 mb-3 text-xs text-blue-700">
-        📐 数学公式使用 $$...$$（块级）或 $...$（行内）包裹
+      <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded p-2 mb-3 text-xs text-blue-700 dark:text-blue-400">
+        📐 支持 $$ 块级公式和 $ 行内公式渲染
       </div>
       {renderContent(node.content)}
     </div>
   );
 }
 
-/** 编程卡片（代码块自动高亮） */
+/** 编程卡片（代码块自动高亮 + 语言标签） */
 function ProgrammingCard({ node }: KnowledgeCardProps) {
   return <div>{renderContent(node.content)}</div>;
 }
 
-/** 语言卡片 */
+/** 语言卡片（发音/语法提示） */
 function LanguageCard({ node }: KnowledgeCardProps) {
-  return <div>{renderContent(node.content)}</div>;
+  return (
+    <div>
+      <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded p-2 mb-3 text-xs text-green-700 dark:text-green-400">
+        🗣️ 语言学习：注意发音和语法结构
+      </div>
+      {renderContent(node.content)}
+    </div>
+  );
 }
 
-/** 历史卡片 */
+/** 历史卡片（时间线/因果提示） */
 function HistoryCard({ node }: KnowledgeCardProps) {
-  return <div>{renderContent(node.content)}</div>;
+  return (
+    <div>
+      <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded p-2 mb-3 text-xs text-amber-700 dark:text-amber-400">
+        📜 关注时间线和因果关系
+      </div>
+      {renderContent(node.content)}
+    </div>
+  );
 }
 
 /** 物理卡片（含 KaTeX 公式渲染） */
 function PhysicsCard({ node }: KnowledgeCardProps) {
   return (
     <div>
-      <div className="bg-blue-50 border border-blue-200 rounded p-2 mb-3 text-xs text-blue-700">
-        ⚛️ 物理公式使用 $$...$$（块级）或 $...$（行内）包裹
+      <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded p-2 mb-3 text-xs text-blue-700 dark:text-blue-400">
+        ⚛️ 支持公式渲染（$$块级 / $行内）
       </div>
       {renderContent(node.content)}
     </div>
@@ -128,14 +142,14 @@ const TEMPLATES: Record<string, React.FC<KnowledgeCardProps>> = {
 export default function KnowledgeCard({ node }: KnowledgeCardProps) {
   const CardTemplate = TEMPLATES[node.domain_id] || DefaultCard;
   return (
-    <div className="bg-white rounded-xl border border-gray-100 p-4">
+    <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 p-4">
       <div className="flex items-center gap-2 mb-2">
-        <span className="text-xs bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded-full">{node.difficulty}</span>
-        <span className="text-xs bg-gray-50 text-gray-500 px-2 py-0.5 rounded-full">{node.node_type}</span>
-        <span className="text-xs bg-gray-50 text-gray-400 px-2 py-0.5 rounded-full">{node.domain_id}</span>
+        <span className="text-xs bg-indigo-50 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-400 px-2 py-0.5 rounded-full">{node.difficulty}</span>
+        <span className="text-xs bg-gray-50 dark:bg-gray-700 text-gray-500 dark:text-gray-400 px-2 py-0.5 rounded-full">{node.node_type}</span>
+        <span className="text-xs bg-gray-50 dark:bg-gray-700 text-gray-400 dark:text-gray-500 px-2 py-0.5 rounded-full">{node.domain_id}</span>
       </div>
-      <h2 className="text-lg font-bold mb-1">{node.title}</h2>
-      <p className="text-gray-500 text-sm mb-2">{node.summary}</p>
+      <h2 className="text-lg font-bold mb-1 text-gray-900 dark:text-gray-100">{node.title}</h2>
+      <p className="text-gray-500 dark:text-gray-400 text-sm mb-2">{node.summary}</p>
       <CardTemplate node={node} />
       {node.examples && node.examples.length > 0 && (
         <div className="mt-3 pt-3 border-t border-gray-100">
