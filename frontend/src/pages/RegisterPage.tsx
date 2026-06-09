@@ -39,13 +39,13 @@ export default function RegisterPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-50 to-blue-50">
-      <div className="bg-white p-8 rounded-2xl shadow-lg w-full max-w-md">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-50 to-blue-50 dark:from-gray-900 dark:to-gray-950">
+      <div className="bg-white dark:bg-gray-800 p-8 rounded-2xl shadow-lg w-full max-w-md">
         <div className="flex justify-center mb-4">
           <img src="/edu_logo.png" alt="EduMind" className="h-16 w-auto" />
         </div>
-        <h1 className="text-2xl font-bold text-center mb-2">注册 EduMind</h1>
-        <p className="text-gray-400 text-center text-sm mb-8">创建你的账号，开始学习之旅</p>
+        <h1 className="text-2xl font-bold text-center mb-2 text-gray-900 dark:text-gray-100">注册 EduMind</h1>
+        <p className="text-gray-400 dark:text-gray-500 text-center text-sm mb-8">创建你的账号，开始学习之旅</p>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>

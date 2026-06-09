@@ -13,6 +13,7 @@ import AdminKnowledgeGraphPage from './pages/admin/KnowledgeGraphPage';
 import ReportPage from './pages/ReportPage';
 import Layout from './components/common/Layout';
 import { ToastContainer, LoadingSpinner } from './components/common';
+import { ThemeProvider } from './hooks/useTheme';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const token = useAuthStore((s) => s.token);
@@ -47,7 +48,7 @@ function HomeRedirect() {
 
 export default function App() {
   return (
-    <>
+    <ThemeProvider>
       <ToastContainer />
       <Routes>
       <Route path="/login" element={<LoginPage />} />
@@ -73,6 +74,6 @@ export default function App() {
         <Route path="admin/knowledge-graph" element={<AdminRoute><AdminKnowledgeGraphPage /></AdminRoute>} />
       </Route>
     </Routes>
-    </>
+    </ThemeProvider>
   );
 }
