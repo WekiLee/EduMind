@@ -9,10 +9,10 @@ from app.models.user import User
 __all__ = [
     "User",
     "LearningPath",
-    "NodeProgress",`n    "MasterySnapshot",
+    "NodeProgress",
+    "MasterySnapshot",
     "QuizAttempt",
     "ChatSession",
     "ChatMessage",
     "SystemConfig",
 ]
-

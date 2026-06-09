@@ -14,6 +14,7 @@ from app.models.quiz import ChatMessage, ChatSession, QuizAttempt
 from app.models.system_config import SystemConfig
 from app.models.user import User
 from app.services.knowledge_graph import KnowledgeGraphService
+from app.services.mcp_client import get_mcp_manager
 
 router = APIRouter(prefix="/admin", tags=["管理员"])
 
@@ -377,8 +378,6 @@ async def admin_list_mcp_tools(
     admin: User = Depends(require_admin),
 ):
     """列出所有可用 MCP 工具"""
-    from app.services.mcp_client import get_mcp_manager
-
     tools = get_mcp_manager().get_all_tools()
     return {"data": tools}
 
@@ -394,7 +393,5 @@ async def admin_call_mcp_tool(
     admin: User = Depends(require_admin),
 ):
     """测试调用 MCP 工具"""
-    from app.services.mcp_client import get_mcp_manager
-
     result = await get_mcp_manager().call_tool(req.tool, req.args)
     return {"data": {"tool": req.tool, "args": req.args, "result": result}}
