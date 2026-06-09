@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../../services/api';
 import { Search, Edit3, Trash2, Save, X, AlertTriangle } from 'lucide-react';
+import { showToast } from '../../components/common';
 
 interface LearningPath {
   id: string;
@@ -42,7 +43,7 @@ export default function AdminKnowledgeGraphPage() {
     api.get('/admin/learning-paths', { params: { page: 1, size: 100 } }).then(({ data }) => {
       setPaths(data.data);
       setTotal(data.total);
-    }).catch(console.error);
+    }).catch(() => showToast('error', '加载路径列表失败'));
   }, []);
 
   const loadNodes = async (pathId: string) => {
@@ -52,8 +53,8 @@ export default function AdminKnowledgeGraphPage() {
     try {
       const { data } = await api.get(`/admin/learning-paths/${pathId}/nodes`);
       setNodes(data.data);
-    } catch (err) {
-      console.error(err);
+    } catch {
+      showToast('error', '加载节点失败');
     } finally {
       setNodesLoading(false);
     }
@@ -76,9 +77,10 @@ export default function AdminKnowledgeGraphPage() {
     try {
       await api.put(`/admin/nodes/${editingNode}`, editForm);
       setEditingNode(null);
+      showToast('success', '节点已更新');
       if (selectedPathId) loadNodes(selectedPathId);
-    } catch (err) {
-      console.error(err);
+    } catch {
+      showToast('error', '更新节点失败');
     } finally {
       setSaving(false);
     }
@@ -89,9 +91,10 @@ export default function AdminKnowledgeGraphPage() {
     setDeleting(nodeId);
     try {
       await api.delete(`/admin/nodes/${nodeId}`);
+      showToast('success', '节点已删除');
       if (selectedPathId) loadNodes(selectedPathId);
-    } catch (err) {
-      console.error(err);
+    } catch {
+      showToast('error', '删除节点失败');
     } finally {
       setDeleting(null);
     }

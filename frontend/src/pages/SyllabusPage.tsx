@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { api } from '../services/api';
 import { ArrowLeft, GripVertical, Save } from 'lucide-react';
-import { LoadingSpinner } from '../components/common';
+import { LoadingSpinner, showToast } from '../components/common';
 import {
   DndContext, closestCenter, PointerSensor, useSensor, useSensors,
   type DragEndEvent,
@@ -91,9 +91,10 @@ export default function SyllabusPage() {
       const syllabus = modules.map((m) => ({ module_name: m.module_name, order: m.order, node_ids: m.node_ids }));
       await api.patch(`/learning-paths/${pathId}`, syllabus);
       setSaved(true);
+      showToast('success', '大纲已保存');
       setTimeout(() => navigate(`/learn/${pathId}`), 800);
-    } catch (err) {
-      console.error('保存失败', err);
+    } catch {
+      showToast('error', '保存失败');
     } finally {
       setSaving(false);
     }

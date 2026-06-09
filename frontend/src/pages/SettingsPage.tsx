@@ -3,6 +3,7 @@ import { useSearchParams, useNavigate } from 'react-router-dom';
 import { api } from '../services/api';
 import { useAuthStore } from '../stores/useAuthStore';
 import { Save, KeyRound, BookText, Timer, MessageCircle, ClipboardCheck, Monitor } from 'lucide-react';
+import { showToast } from '../components/common';
 
 interface LearnerProfile {
   content: { abstraction_level: number; analogy_density: number; example_style: number };
@@ -116,7 +117,6 @@ export default function SettingsPage() {
   const navigate = useNavigate();
   const forcePassword = searchParams.get('force_password') === '1';
   const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState('');
 
   const [profile, setProfile] = useState<LearnerProfile>(() => normalizeProfile(user?.learner_profile));
 
@@ -142,10 +142,9 @@ export default function SettingsPage() {
     try {
       await api.patch('/users/me', { learner_profile: profile });
       await loadUser();
-      setMessage('设置已保存');
-      setTimeout(() => setMessage(''), 3000);
-    } catch (err) {
-      setMessage('保存失败');
+      showToast('success', '学习风格设置已保存');
+    } catch {
+      showToast('error', '保存失败');
     } finally {
       setSaving(false);
     }
@@ -349,7 +348,6 @@ export default function SettingsPage() {
                 className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 mt-6 disabled:opacity-50">
                 <Save size={16} /> {saving ? '保存中...' : '保存设置'}
               </button>
-              {message && <p className="text-sm text-green-600 mt-2">{message}</p>}
             </div>
           )}
 
