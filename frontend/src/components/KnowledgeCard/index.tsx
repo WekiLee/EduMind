@@ -1,4 +1,9 @@
-/** 知识卡片组件 — 按 domain_id 选择模板渲染 */
+/** 知识卡片组件 — 按 domain_id 选择模板渲染，支持 KaTeX 公式 */
+
+import katex from 'katex';
+
+// 确保 KaTeX CSS 被加载
+import 'katex/dist/katex.min.css';
 
 interface KnowledgeNode {
   id: string;
@@ -18,7 +23,32 @@ interface KnowledgeCardProps {
   node: KnowledgeNode;
 }
 
-/** 渲染内容：代码块用深色背景，普通文本正常显示 */
+/** 将 LaTeX 公式渲染为 HTML（处理 $$...$$ 块级 和 $...$ 行内） */
+function renderLatex(text: string): string {
+  if (!text.includes('$')) return text;
+
+  // 先替换块级公式 $$...$$
+  let result = text.replace(/\$\$([\s\S]*?)\$\$/g, (_, formula: string) => {
+    try {
+      return katex.renderToString(formula.trim(), { displayMode: true, throwOnError: false });
+    } catch {
+      return `<div class="text-red-500 text-sm">⚠ LaTeX 错误: ${formula.trim().slice(0, 50)}</div>`;
+    }
+  });
+
+  // 再替换行内公式 $...$
+  result = result.replace(/\$([^$\n]+?)\$/g, (_, formula: string) => {
+    try {
+      return katex.renderToString(formula.trim(), { displayMode: false, throwOnError: false });
+    } catch {
+      return `$${formula}$`; // 渲染失败保留原文
+    }
+  });
+
+  return result;
+}
+
+/** 渲染内容：代码块用深色背景，公式用 KaTeX，普通文本正常显示 */
 function renderContent(text: string) {
   if (!text) return null;
   const parts = text.split(/(```[\s\S]*?```)/g);
@@ -31,6 +61,11 @@ function renderContent(text: string) {
         </pre>
       );
     }
+    // 检查是否包含 LaTeX 公式
+    if (part.includes('$')) {
+      const html = renderLatex(part);
+      return <div key={i} className="whitespace-pre-wrap text-sm leading-relaxed mb-2" dangerouslySetInnerHTML={{ __html: html }} />;
+    }
     return (
       <div key={i} className="whitespace-pre-wrap text-sm leading-relaxed mb-2">{part}</div>
     );
@@ -42,15 +77,13 @@ function DefaultCard({ node }: KnowledgeCardProps) {
   return <div>{renderContent(node.content)}</div>;
 }
 
-/** 数学卡片（含公式提示） */
+/** 数学卡片（含 KaTeX 公式渲染） */
 function MathCard({ node }: KnowledgeCardProps) {
   return (
     <div>
-      {node.content.includes('$$') && (
-        <div className="bg-yellow-50 border border-yellow-200 rounded p-2 mb-3 text-xs text-yellow-700">
-          ⚡ 数学公式使用 $$...$$ 包裹显示
-        </div>
-      )}
+      <div className="bg-blue-50 border border-blue-200 rounded p-2 mb-3 text-xs text-blue-700">
+        📐 数学公式使用 $$...$$（块级）或 $...$（行内）包裹
+      </div>
       {renderContent(node.content)}
     </div>
   );
@@ -71,15 +104,13 @@ function HistoryCard({ node }: KnowledgeCardProps) {
   return <div>{renderContent(node.content)}</div>;
 }
 
-/** 物理卡片 */
+/** 物理卡片（含 KaTeX 公式渲染） */
 function PhysicsCard({ node }: KnowledgeCardProps) {
   return (
     <div>
-      {node.content.includes('$$') && (
-        <div className="bg-yellow-50 border border-yellow-200 rounded p-2 mb-3 text-xs text-yellow-700">
-          ⚡ 物理公式使用 $$...$$ 包裹显示
-        </div>
-      )}
+      <div className="bg-blue-50 border border-blue-200 rounded p-2 mb-3 text-xs text-blue-700">
+        ⚛️ 物理公式使用 $$...$$（块级）或 $...$（行内）包裹
+      </div>
       {renderContent(node.content)}
     </div>
   );
