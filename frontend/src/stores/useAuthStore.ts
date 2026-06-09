@@ -11,6 +11,7 @@ interface User {
   organization?: string;
   domain_id: string;
   learner_profile: Record<string, number>;
+  model_config?: Record<string, string>;
 }
 
 interface AuthState {
@@ -64,3 +65,4 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     return get().user?.must_change_password === true;
   },
 }));
+

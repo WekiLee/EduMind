@@ -50,6 +50,23 @@ class LLMAdapter:
         if api_base:
             cls._runtime_api_base = api_base
 
+    def with_user_config(self, model_config: dict | None) -> "LLMAdapter":
+        """返回一个使用用户级模型配置的 LLMAdapter 副本"""
+        if not model_config:
+            return self
+        import copy
+        clone = copy.copy(self)
+        if model_config.get("provider"):
+            clone.provider = model_config["provider"]
+        if model_config.get("model"):
+            clone.model = model_config["model"]
+        if model_config.get("api_base"):
+            clone.api_base = model_config["api_base"]
+        if model_config.get("api_key"):
+            clone.api_key = model_config["api_key"]
+        clone._setup_provider()
+        return clone
+
     def _setup_provider(self):
         if self.provider == "ollama":
             self.api_base = self._runtime_api_base or settings.ollama_base_url
@@ -646,3 +663,4 @@ class LLMAdapter:
         if not parts:
             return ""
         return "教学风格要求：" + "；".join(parts) + "。"
+

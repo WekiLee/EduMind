@@ -15,6 +15,7 @@ router = APIRouter(prefix="/users", tags=["用户"])
 class UpdateUserRequest(BaseModel):
     name: str | None = None
     learner_profile: dict | None = None
+    model_config: dict | None = None
     domain_id: str | None = None
     password: str | None = None
 
@@ -35,6 +36,8 @@ async def update_user(
         user.name = req.name
     if req.learner_profile is not None:
         user.learner_profile = req.learner_profile
+    if req.model_config is not None:
+        user.model_config = req.model_config
     if req.domain_id is not None:
         user.domain_id = req.domain_id
     if req.password:
@@ -45,3 +48,4 @@ async def update_user(
 
     await db.flush()
     return {"data": user.to_dict()}
+

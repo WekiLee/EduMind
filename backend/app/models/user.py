@@ -21,6 +21,7 @@ class User(Base):
     organization = Column(String(200), nullable=True)
     domain_id = Column(String(50), default="general")
     learner_profile = Column(JSON, default=dict)
+    model_config = Column(JSON, nullable=True)  # 用户级 LLM 配置: {provider, model, api_base, api_key}
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
     updated_at = Column(
         DateTime(timezone=True),
@@ -39,5 +40,7 @@ class User(Base):
             "organization": self.organization,
             "domain_id": self.domain_id,
             "learner_profile": self.learner_profile,
+            "model_config": self.model_config,
             "created_at": self.created_at.isoformat() if self.created_at else None,
         }
+

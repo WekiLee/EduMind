@@ -129,6 +129,10 @@ export default function SettingsPage() {
   const [passwordForm, setPasswordForm] = useState({ newPassword: '', confirmPassword: '' });
   const [passwordMessage, setPasswordMessage] = useState('');
   const [passwordSaving, setPasswordSaving] = useState(false);
+  const [modelConfig, setModelConfig] = useState<Record<string, string> | undefined>(() => {
+    const mc = user?.model_config;
+    return mc && typeof mc === "object" ? mc as Record<string, string> : undefined;
+  });
 
   const update = <G extends keyof LearnerProfile>(group: G, field: keyof LearnerProfile[G], value: any) => {
     setProfile((prev) => ({
@@ -351,6 +355,47 @@ export default function SettingsPage() {
             </div>
           )}
 
+          {/* AI 模型配置（默认使用系统配置，用户可选个人偏好） */}
+          <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 p-6 mb-6">
+            <h2 className="font-medium mb-4">🤖 AI 模型配置</h2>
+            <p className="text-xs text-gray-400 dark:text-gray-500 mb-4">
+              可选配个人常用的 AI 模型，留空则使用系统默认配置
+            </p>
+            <div className="space-y-3">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">LLM Provider</label>
+                <input type="text" value={modelConfig?.provider || ''}
+                  onChange={(e) => setModelConfig({ ...(modelConfig || {}), provider: e.target.value })}
+                  placeholder="openai-compatible / ollama" className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">模型名称</label>
+                <input type="text" value={modelConfig?.model || ''}
+                  onChange={(e) => setModelConfig({ ...(modelConfig || {}), model: e.target.value })}
+                  placeholder="deepseek-chat, qwen2.5:7b..." className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">API Key</label>
+                <input type="password" value={modelConfig?.api_key || ''}
+                  onChange={(e) => setModelConfig({ ...(modelConfig || {}), api_key: e.target.value })}
+                  placeholder="可选，留空使用系统配置" className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">API Base URL</label>
+                <input type="text" value={modelConfig?.api_base || ''}
+                  onChange={(e) => setModelConfig({ ...(modelConfig || {}), api_base: e.target.value })}
+                  placeholder="留空使用系统默认" className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" />
+              </div>
+              <button onClick={async () => {
+                try {
+                  await api.patch('/users/me', { model_config: modelConfig || {} });
+                  showToast('success', '模型配置已保存');
+                } catch { showToast('error', '保存失败'); }
+              }} className="text-sm bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700">
+                保存模型配置
+              </button>
+            </div>
+          </div>
           <div className="bg-white rounded-xl border border-gray-100 p-6">
             <h2 className="font-medium mb-4">关于 EduMind</h2>
             <p className="text-sm text-gray-500">版本 0.1.0 MVP</p>
@@ -361,3 +406,5 @@ export default function SettingsPage() {
     </div>
   );
 }
+
+
