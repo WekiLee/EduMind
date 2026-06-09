@@ -2,7 +2,7 @@ import { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { api } from '../services/api';
 import { connectChatWS, sendChatMessage, sendExtensionRequest, sendAudioMessage, closeChatWS } from '../services/api';
-import { isVoiceSupported, startRecording, stopRecording, wasAutoStopped, cancelRecording } from '../services/voice';
+import { isVoiceSupported, startRecording, stopRecording, cancelRecording, isVoiceActivationActive, startVoiceActivation, stopVoiceActivation } from '../services/voice';
 import { useLearningStore } from '../stores/useLearningStore';
 import { ChevronRight, MessageSquare, Brain, Send, Maximize2, BarChart3 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
@@ -218,6 +218,25 @@ export default function LearnPage() {
       } catch (_) {
         alert('无法访问麦克风，请检查权限设置');
       }
+    }
+  };
+
+  // 语音唤醒模式切换
+  const handleVoiceActivationToggle = async () => {
+    if (isVoiceActivationActive()) {
+      stopVoiceActivation();
+      return;
+    }
+    try {
+      await startVoiceActivation(async (base64) => {
+        if (base64 && currentNode) {
+          addChatMessage({ id: `wake-${Date.now()}`, role: 'user', content: '🎤 [语音唤醒]' });
+          setChatLoading(true);
+          sendAudioMessage(base64, currentNode.id, pathId);
+        }
+      });
+    } catch (_) {
+      alert('无法访问麦克风，请检查权限设置');
     }
   };
 
@@ -439,9 +458,10 @@ export default function LearnPage() {
               className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
             />
             {isVoiceSupported() && (
+              <>
               <button
                 onClick={handleVoiceToggle}
-                disabled={isChatLoading}
+                disabled={isChatLoading || isVoiceActivationActive()}
                 className={`px-3 py-2 rounded-lg border text-sm transition-colors ${
                   isRecording
                     ? 'bg-red-500 text-white border-red-500 animate-pulse'
@@ -451,6 +471,19 @@ export default function LearnPage() {
               >
                 {isRecording ? '⏹' : '🎤'}
               </button>
+              <button
+                onClick={handleVoiceActivationToggle}
+                disabled={isChatLoading || isRecording}
+                className={`px-3 py-2 rounded-lg border text-sm transition-colors ${
+                  isVoiceActivationActive()
+                    ? 'bg-green-500 text-white border-green-500 animate-pulse'
+                    : 'bg-white text-gray-500 border-gray-300 hover:bg-gray-50'
+                } disabled:opacity-50`}
+                title={isVoiceActivationActive() ? '关闭语音唤醒' : '语音唤醒'}
+              >
+                {isVoiceActivationActive() ? '🔊' : '😴'}
+              </button>
+              </>
             )}
             <button
               onClick={handleSend}
@@ -493,4 +526,5 @@ export default function LearnPage() {
     </div>
   );
 }
+
 
