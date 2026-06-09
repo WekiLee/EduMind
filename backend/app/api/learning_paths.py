@@ -14,6 +14,7 @@ from app.core.database import get_db
 from app.core.security import get_current_user_id
 from app.models.path import LearningPath
 from app.models.progress import NodeProgress
+from app.models.user import User
 from app.services.content_pipeline import ContentPipelineService
 from app.services.knowledge_graph import KnowledgeGraphService
 
@@ -35,8 +36,6 @@ async def create_learning_path(
 ):
     """创建学习路径（主题模式）"""
     # 管理员不能学习
-    from app.models.user import User
-
     result = await db.execute(select(User).where(User.id == user_id))
     user = result.scalar_one_or_none()
     if user and user.role == "admin":
@@ -59,8 +58,6 @@ async def create_learning_path_with_search(
     db: AsyncSession = Depends(get_db),
 ):
     """创建学习路径（主题+搜索增强模式）"""
-    from app.models.user import User
-
     result = await db.execute(select(User).where(User.id == user_id))
     user = result.scalar_one_or_none()
     if user and user.role == "admin":
