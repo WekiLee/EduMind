@@ -18,6 +18,7 @@ class LearningPath(Base):
     syllabus = Column(JSON, default=list)  # [{"module_name": "...", "order": 1, "node_ids": [...]}]
     status = Column(String(20), nullable=False, default="active")  # processing | active | completed | archived
     source = Column(String(20), default="topic")  # topic | upload | link
+    learner_profile_override = Column(JSON, nullable=True)  # 本路径的学习者画像覆盖
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
     completed_at = Column(DateTime(timezone=True), nullable=True)
 
@@ -30,6 +31,8 @@ class LearningPath(Base):
             "syllabus": self.syllabus,
             "status": self.status,
             "source": self.source,
+            "learner_profile_override": self.learner_profile_override,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "completed_at": self.completed_at.isoformat() if self.completed_at else None,
         }
+

@@ -327,3 +327,4 @@ async def chat_websocket(websocket: WebSocket, token: str):
                 if sess:
                     sess.ended_at = datetime.now(UTC)
                     await db.commit()
+

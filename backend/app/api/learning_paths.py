@@ -228,6 +228,29 @@ async def update_syllabus(
     return {"data": path.to_dict()}
 
 
+@router.patch("/{path_id}/profile-override")
+async def update_path_profile_override(
+    path_id: str,
+    learner_profile_override: dict | None,
+    user_id: str = Depends(get_current_user_id),
+    db: AsyncSession = Depends(get_db),
+):
+    """更新路径的 Learner Profile 覆盖"""
+    from app.services.learner_profile import normalize
+
+    result = await db.execute(select(LearningPath).where(LearningPath.id == path_id, LearningPath.user_id == user_id))
+    path = result.scalar_one_or_none()
+    if not path:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="学习路径不存在")
+
+    if learner_profile_override is None:
+        path.learner_profile_override = None
+    else:
+        path.learner_profile_override = normalize(learner_profile_override)
+    await db.flush()
+    return {"data": path.to_dict()}
+
+
 @router.delete("/{path_id}", status_code=204)
 async def delete_learning_path(
     path_id: str,
