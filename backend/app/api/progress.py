@@ -14,6 +14,7 @@ from app.core.security import get_current_user_id
 from app.models.path import LearningPath
 from app.models.progress import NodeProgress
 from app.models.quiz import QuizAttempt
+from app.models.snapshot import MasterySnapshot
 from app.services.assessment import AssessmentService
 from app.services.knowledge_graph import KnowledgeGraphService
 
@@ -104,10 +105,6 @@ async def get_mastery_trend(
     limit: int = 20,
 ):
     """获取掌握度趋势数据（快照列表）"""
-    from sqlalchemy import select
-
-    from app.models.snapshot import MasterySnapshot
-
     result = await db.execute(
         select(MasterySnapshot)
         .where(
@@ -419,5 +416,7 @@ async def complete_node(
 
     await db.flush()
     return {"data": np.to_dict()}
+
+
 
 
