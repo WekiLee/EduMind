@@ -25,6 +25,10 @@ edge-tts>=6.0
 # faster-whisper 可选（体积较大），首次使用需先安装：
 # pip install faster-whisper
 
+# 向量搜索（可选 — pgvector 集成）
+# pgvector>=0.3.0
+# sentence-transformers>=3.0  # 本地嵌入模型（如不使用本地可跳过）
+
 # 测试
 pytest>=8.0
 pytest-asyncio>=0.24

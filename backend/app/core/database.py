@@ -2,6 +2,7 @@
 
 from neo4j import AsyncGraphDatabase
 from redis.asyncio import Redis
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase
 
@@ -15,6 +16,12 @@ async_session_factory = async_sessionmaker(engine, class_=AsyncSession, expire_o
 
 class Base(DeclarativeBase):
     pass
+
+
+async def init_pgvector():
+    """初始化 pgvector 扩展"""
+    async with engine.begin() as conn:
+        await conn.run_sync(lambda sync_conn: sync_conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector")))
 
 
 async def get_db() -> AsyncSession:

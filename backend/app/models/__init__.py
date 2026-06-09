@@ -1,3 +1,4 @@
+from app.models.embedding import NodeEmbedding
 from app.models.path import LearningPath
 from app.models.progress import NodeProgress
 from app.models.quiz import ChatMessage, ChatSession, QuizAttempt

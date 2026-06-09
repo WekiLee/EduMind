@@ -10,6 +10,7 @@ from app.models.path import LearningPath
 from app.services.cross_validation import CrossValidationService
 from app.services.knowledge_graph import KnowledgeGraphService
 from app.services.search_orchestrator import SearchOrchestrator
+from app.services.semantic_search import SemanticSearchService
 
 
 class ContentPipelineService:
@@ -52,6 +53,9 @@ class ContentPipelineService:
         path.syllabus = resolved_syllabus
         path.status = "active"
         await self.db.flush()
+
+        # 索引向量嵌入（后台静默执行）
+        await self._index_path_embeddings(knowledge, node_id_map, path.id)
 
         return path
 
@@ -110,7 +114,26 @@ class ContentPipelineService:
         path.status = "active"
         await self.db.flush()
 
+        # 索引向量嵌入
+        await self._index_path_embeddings(enriched, node_id_map, path.id)
+
         return path
+
+    async def _index_path_embeddings(self, knowledge: dict, node_id_map: dict[str, str], path_id: str):
+        """为路径中所有节点生成向量索引（静默失败不影响主流程）"""
+        try:
+            searcher = SemanticSearchService()
+            for node_data in knowledge.get("nodes", []):
+                title = node_data.get("title", "")
+                node_id = node_id_map.get(title)
+                if not node_id:
+                    continue
+                text = f"{title}\n\n{node_data.get('summary', '')}\n\n{node_data.get('content', '')}"
+                await searcher.index_node(self.db, node_id, path_id, text)
+            await self.db.flush()
+            print(f"  ✅ 已为 {len(node_id_map)} 个节点生成向量索引")
+        except Exception as e:
+            print(f"  ⚠️  向量索引生成跳过: {e}")
 
     async def process_upload(
         self, user_id: str, file_path: str, domain_id: str, topic: str | None = None

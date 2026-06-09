@@ -5,10 +5,10 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import admin, auth, learning_paths, nodes, progress, quiz, users
+from app.api import admin, auth, learning_paths, nodes, progress, quiz, search, users
 from app.api.progress import path_progress_router
 from app.core.config import settings
-from app.core.database import Base, async_session_factory, close_neo4j, close_redis, engine
+from app.core.database import Base, async_session_factory, close_neo4j, close_redis, engine, init_pgvector
 from app.llm.adapter import LLMAdapter
 from app.ws import chat
 
@@ -16,6 +16,12 @@ from app.ws import chat
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """应用生命周期管理"""
+    # 初始化 pgvector 扩展（必须在建表前）
+    try:
+        await init_pgvector()
+    except Exception as e:
+        print(f"  ⚠️  pgvector 扩展初始化跳过: {e}")
+
     # 启动时创建数据库表（开发环境自动迁移）
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
@@ -101,6 +107,7 @@ app.include_router(path_progress_router, prefix="/api/v1")
 app.include_router(quiz.router, prefix="/api/v1")
 app.include_router(chat.router, prefix="/api/v1")
 app.include_router(admin.router, prefix="/api/v1")
+app.include_router(search.router, prefix="/api/v1")
 
 
 @app.get("/api/health")
