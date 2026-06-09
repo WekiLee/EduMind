@@ -2,7 +2,7 @@ import { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { api } from '../services/api';
 import { connectChatWS, sendChatMessage, sendExtensionRequest, sendAudioMessage, closeChatWS } from '../services/api';
-import { isVoiceSupported, startRecording, stopRecording } from '../services/voice';
+import { isVoiceSupported, startRecording, stopRecording, wasAutoStopped, cancelRecording } from '../services/voice';
 import { useLearningStore } from '../stores/useLearningStore';
 import { ChevronRight, MessageSquare, Brain, Send, Maximize2, BarChart3 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
@@ -191,21 +191,29 @@ export default function LearnPage() {
     );
   };
 
-  // 语音录制
+  // 语音录制（含 VAD 自动停止）
   const handleVoiceToggle = async () => {
     if (isRecording) {
       try {
-        const { base64 } = await stopRecording();
+        cancelRecording();
         setIsRecording(false);
-        if (base64 && currentNode) {
-          addChatMessage({ id: `voice-${Date.now()}`, role: 'user', content: '🎤 [语音消息]' });
-          setChatLoading(true);
-          sendAudioMessage(base64, currentNode.id, pathId);
-        }
-      } catch (_) { /* 录音取消或失败 */ }
+      } catch (_) { /* 取消 */ }
     } else {
       try {
-        await startRecording();
+        await startRecording(
+          async () => {
+            // VAD 自动停止回调
+            setIsRecording(false);
+            try {
+              if (currentNode) {
+                const { base64 } = await stopRecording();
+                addChatMessage({ id: `voice-${Date.now()}`, role: 'user', content: '🎤 [语音消息]' });
+                setChatLoading(true);
+                sendAudioMessage(base64, currentNode.id, pathId);
+              }
+            } catch { /*  */ }
+          }
+        );
         setIsRecording(true);
       } catch (_) {
         alert('无法访问麦克风，请检查权限设置');
@@ -439,7 +447,7 @@ export default function LearnPage() {
                     ? 'bg-red-500 text-white border-red-500 animate-pulse'
                     : 'bg-white text-gray-500 border-gray-300 hover:bg-gray-50'
                 } disabled:opacity-50`}
-                title={isRecording ? '点击停止录音' : '语音输入'}
+                title={isRecording ? 'VAD 录音中，静音自动停止' : '语音输入'}
               >
                 {isRecording ? '⏹' : '🎤'}
               </button>
@@ -485,3 +493,4 @@ export default function LearnPage() {
     </div>
   );
 }
+
