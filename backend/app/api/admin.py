@@ -367,3 +367,34 @@ async def admin_delete_node(
     if not existing:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="节点不存在")
     await kg.delete_node(node_id)
+
+
+# ── MCP 工具测试 ──
+
+
+@router.get("/mcp/tools")
+async def admin_list_mcp_tools(
+    admin: User = Depends(require_admin),
+):
+    """列出所有可用 MCP 工具"""
+    from app.services.mcp_client import get_mcp_manager
+
+    tools = get_mcp_manager().get_all_tools()
+    return {"data": tools}
+
+
+class MCPCallRequest(BaseModel):
+    tool: str
+    args: dict = {}
+
+
+@router.post("/mcp/call")
+async def admin_call_mcp_tool(
+    req: MCPCallRequest,
+    admin: User = Depends(require_admin),
+):
+    """测试调用 MCP 工具"""
+    from app.services.mcp_client import get_mcp_manager
+
+    result = await get_mcp_manager().call_tool(req.tool, req.args)
+    return {"data": {"tool": req.tool, "args": req.args, "result": result}}

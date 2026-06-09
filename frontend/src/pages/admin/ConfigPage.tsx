@@ -1,12 +1,15 @@
 import { useEffect, useState } from 'react';
 import { api } from '../../services/api';
-import { Save } from 'lucide-react';
+import { Save, Terminal } from 'lucide-react';
 import { LoadingSpinner, showToast } from '../../components/common';
 
 export default function AdminConfigPage() {
   const [config, setConfig] = useState<Record<string, any>>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [mcpTools, setMcpTools] = useState<any[]>([]);
+  const [mcpResult, setMcpResult] = useState('');
+  const [mcpTesting, setMcpTesting] = useState(false);
 
   useEffect(() => { loadConfig(); }, []);
 
@@ -97,6 +100,52 @@ export default function AdminConfigPage() {
           允许用户自助注册
         </label>
         <p className="text-xs text-gray-400 mt-1">关闭后新用户只能由管理员创建</p>
+      </div>
+
+      {/* MCP 工具 */}
+      <div className="bg-white rounded-xl border border-gray-100 p-6 mb-6">
+        <h2 className="font-medium mb-4 flex items-center gap-2"><Terminal size={18} /> MCP 工具</h2>
+        <p className="text-xs text-gray-400 mb-3">MCP 协议允许 AI 在教学对话中调用外部工具</p>
+        <button onClick={async () => {
+          try {
+            const { data } = await api.get('/admin/mcp/tools');
+            setMcpTools(data.data);
+            showToast('success', `加载到 ${data.data.length} 个工具`);
+          } catch {
+            showToast('error', '加载工具列表失败');
+          }
+        }} className="text-xs text-indigo-600 hover:underline mb-3 inline-block">刷新工具列表</button>
+
+        {mcpTools.length > 0 && (
+          <div className="space-y-2 mb-4">
+            {mcpTools.map((t: any, i: number) => (
+              <div key={i} className="bg-gray-50 rounded-lg px-3 py-2 text-sm">
+                <div className="font-medium text-gray-700">{t.name}</div>
+                <p className="text-xs text-gray-500 mt-0.5">{t.description}</p>
+                <button onClick={async () => {
+                  setMcpTesting(true);
+                  setMcpResult('');
+                  try {
+                    const { data } = await api.post('/admin/mcp/call', { tool: t.name, args: { query: '测试', max_results: 2 } });
+                    setMcpResult(data.data.result || '(无返回)');
+                  } catch {
+                    setMcpResult('调用失败');
+                  } finally {
+                    setMcpTesting(false);
+                  }
+                }} disabled={mcpTesting}
+                  className="text-xs text-indigo-600 hover:underline mt-1 inline-block">
+                  {mcpTesting ? '测试中...' : '测试调用'}
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+        {mcpResult && (
+          <div className="bg-gray-900 text-green-400 rounded-lg p-3 text-xs font-mono max-h-40 overflow-auto">
+            {mcpResult}
+          </div>
+        )}
       </div>
     </div>
   );

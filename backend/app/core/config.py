@@ -47,6 +47,10 @@ class Settings(BaseSettings):
     search_api_url: str = ""
     search_max_results: int = 5
 
+    # ── MCP ──
+    mcp_enabled: bool = False  # 是否启用 MCP 工具
+    mcp_servers: str = ""  # JSON 格式: [{"name":"web-search","command":"npx","args":["-y","@mcp-server/web-search"]}]
+
     # ── 上下文管理 ──
     context_max_tokens: int = 4096
     context_recent_messages: int = 6

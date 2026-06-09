@@ -1,4 +1,4 @@
-"""LLM 适配器 —— 统一接口 + Token 感知上下文裁剪 + 响应缓存"""
+"""LLM 适配器 —— 统一接口 + Token 感知上下文裁剪 + 响应缓存 + MCP 工具"""
 
 import hashlib
 import json
@@ -248,6 +248,63 @@ class LLMAdapter:
             messages.append({"role": "user", "content": question})
 
         return await self.chat(messages, temperature=0.7, max_tokens=4096)
+
+    async def answer_with_tools(
+        self,
+        question: str,
+        node: dict,
+        domain_profile: dict,
+        learner_profile: dict,
+        chat_history: list[dict],
+        max_tool_rounds: int = 3,
+    ) -> str:
+        """回答学生提问（带 MCP 工具调用），支持多轮工具交互"""
+        learner_style = self._learner_to_instruction(learner_profile)
+        profile_prompt = domain_profile.get("prompt_overrides", {}).get("handle_question", "")
+        system_content = f"你是一位耐心的老师。当前讲解的知识点是：{node.get('title')}\n\n{learner_style}"
+        if profile_prompt:
+            system_content += f"\n\n{profile_prompt}"
+
+        # 添加工具描述
+        from app.services.mcp_client import get_mcp_manager
+
+        tool_desc = get_mcp_manager().get_tool_descriptions()
+        if tool_desc:
+            system_content += f"\n\n{tool_desc}"
+
+        messages = [{"role": "system", "content": system_content}]
+        if chat_history:
+            trimmed = self.trim_context(chat_history)
+            messages.extend(trimmed)
+        if not chat_history or chat_history[-1].get("content") != question:
+            messages.append({"role": "user", "content": question})
+
+        for _round in range(max_tool_rounds):
+            answer = await self.chat(messages, temperature=0.7, max_tokens=4096)
+            tool_call = self._extract_tool_call(answer)
+            if not tool_call:
+                return answer
+
+            # 执行工具调用
+            tool_result = await get_mcp_manager().call_tool(tool_call["tool"], tool_call["args"])
+            messages.append({"role": "assistant", "content": f"[调用工具 {tool_call['tool']}]"})
+            messages.append({"role": "user", "content": f"工具 {tool_call['tool']} 返回结果：\n{tool_result}\n\n请基于此结果回答学生的问题。"})
+
+        # 超过最大轮次，返回最后一次生成的文本
+        return await self.chat(messages, temperature=0.7, max_tokens=4096)
+
+    @staticmethod
+    def _extract_tool_call(text: str) -> dict | None:
+        """从 LLM 回答中提取 TOOL_CALL 指令"""
+        import re
+
+        m = re.search(r"TOOL_CALL:\s*(\{.*\})", text, re.DOTALL)
+        if not m:
+            return None
+        try:
+            return json.loads(m.group(1))
+        except json.JSONDecodeError:
+            return None
 
     async def generate_quiz(self, node: dict, domain_profile: dict) -> dict:
         """生成测验题目（带缓存，相同节点不出两次题）"""
