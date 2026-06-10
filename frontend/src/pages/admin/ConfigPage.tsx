@@ -10,6 +10,7 @@ export default function AdminConfigPage() {
   const [mcpTools, setMcpTools] = useState<any[]>([]);
   const [mcpResult, setMcpResult] = useState('');
   const [mcpTesting, setMcpTesting] = useState(false);
+  const [apiKeyTouched, setApiKeyTouched] = useState(false);
 
   useEffect(() => { loadConfig(); }, []);
 
@@ -17,6 +18,7 @@ export default function AdminConfigPage() {
     try {
       const { data } = await api.get('/admin/config');
       setConfig(data.data || {});
+      setApiKeyTouched(false);
     } catch {
       showToast('error', '加载配置失败');
     } finally {
@@ -30,11 +32,12 @@ export default function AdminConfigPage() {
       await api.put('/admin/config', {
         llm_provider: config.llm_provider,
         llm_model: config.llm_model,
-        llm_api_key: config.llm_api_key || undefined,
+        llm_api_key: apiKeyTouched ? (config.llm_api_key || '') : undefined,
         llm_api_base: config.llm_api_base,
         allow_self_register: config.allow_self_register,
       });
       showToast('success', '配置已更新');
+      await loadConfig();
     } catch (err: any) {
       showToast('error', '保存失败: ' + (err.response?.data?.detail || '未知错误'));
     } finally {
@@ -71,10 +74,23 @@ export default function AdminConfigPage() {
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">API Key</label>
             <input type="password" value={config.llm_api_key || ''}
-              onChange={(e) => setConfig({ ...config, llm_api_key: e.target.value })}
+              onChange={(e) => {
+                setApiKeyTouched(true);
+                setConfig({ ...config, llm_api_key: e.target.value });
+              }}
               placeholder={config.llm_api_key_masked || '输入 API Key...'} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
-            {config.llm_api_key_masked && !config.llm_api_key && (
-              <p className="text-xs text-gray-400 mt-1">已配置：{config.llm_api_key_masked}</p>
+            {config.llm_api_key_masked && !apiKeyTouched && !config.llm_api_key && (
+              <div className="flex items-center justify-between gap-3 mt-1">
+                <p className="text-xs text-gray-400">已配置：{config.llm_api_key_masked}</p>
+                <button type="button"
+                  onClick={() => {
+                    setApiKeyTouched(true);
+                    setConfig({ ...config, llm_api_key: '' });
+                  }}
+                  className="text-xs text-red-600 hover:underline">
+                  清空 API Key
+                </button>
+              </div>
             )}
           </div>
           <div>

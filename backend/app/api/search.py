@@ -3,6 +3,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.guards import list_owned_path_ids, require_owned_path
 from app.core.database import get_db
 from app.core.security import get_current_user_id
 from app.services.semantic_search import SemanticSearchService
@@ -22,6 +23,14 @@ async def semantic_search(
     if not q.strip():
         raise HTTPException(status_code=400, detail="搜索关键词不能为空")
 
+    if path_id:
+        await require_owned_path(path_id, user_id, db)
+        path_ids = [path_id]
+    else:
+        path_ids = await list_owned_path_ids(user_id, db)
+        if not path_ids:
+            return {"data": []}
+
     svc = SemanticSearchService()
-    results = await svc.search(db, q, path_id, top_k)
+    results = await svc.search(db, q, path_ids, top_k)
     return {"data": results}

@@ -1,6 +1,6 @@
 # MVP 数据库设计
 
-> PostgreSQL + Neo4j 完整 Schema。MVP 阶段使用同步模式，所有迁移由 Alembic 管理。
+> PostgreSQL + Neo4j 完整 Schema。当前仓库未包含 Alembic 目录，MVP 阶段通过 `Base.metadata.create_all` 建表，并由 `ensure_schema_compatibility()` 执行少量启动期兼容修复。
 
 ---
 
@@ -129,6 +129,45 @@ CREATE TABLE chat_messages (
 CREATE INDEX idx_cm_session ON chat_messages(session_id);
 ```
 
+### 1.7 system_config
+
+```sql
+CREATE TABLE system_config (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  llm_provider VARCHAR(50) NOT NULL DEFAULT 'openai-compatible',
+  llm_model VARCHAR(100) NOT NULL DEFAULT 'deepseek-v4-flash',
+  llm_api_key TEXT,
+  llm_api_base VARCHAR(500) DEFAULT 'https://api.deepseek.com/v1',
+  allow_self_register BOOLEAN NOT NULL DEFAULT TRUE,
+  updated_by UUID,
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+```
+
+`llm_api_key` 只保存管理员配置的系统密钥，接口响应必须遮盖。`allow_self_register` 统一使用 Boolean；旧版 JSON/Text 列由启动期兼容逻辑转换。
+
+### 1.8 node_embeddings
+
+```sql
+CREATE TABLE node_embeddings (
+  id SERIAL PRIMARY KEY,
+  node_id VARCHAR(255) NOT NULL,
+  path_id UUID NOT NULL REFERENCES learning_paths(id) ON DELETE CASCADE,
+  content_text TEXT NOT NULL,
+  model_name VARCHAR(100) NOT NULL,
+  dimensions INT NOT NULL,
+  embedding VECTOR,
+  created_at TIMESTAMP DEFAULT NOW(),
+
+  UNIQUE (path_id, node_id, model_name)
+);
+
+CREATE INDEX idx_ne_node ON node_embeddings(node_id);
+CREATE INDEX idx_ne_path ON node_embeddings(path_id);
+```
+
+向量唯一性必须包含 `path_id`，避免不同学习路径复用同一 Neo4j 节点 ID 时相互覆盖。
+
 ---
 
 ## 二、Neo4j（知识图谱）
@@ -213,20 +252,12 @@ MVP 阶段不维护 PG ↔ Neo4j 的外键约束（NoSQL 图数据库没有外�
 
 ---
 
-## 四、Alembic 迁移策略
+## 四、迁移策略
 
-```
-backend/
-├── alembic/
-│   ├── versions/          # 迁移文件
-│   └── env.py
-├── alembic.ini
-└── models/                # SQLAlchemy ORM 模型
-    ├── __init__.py
-    ├── user.py
-    ├── path.py
-    ├── progress.py
-    └── quiz.py
-```
+当前代码尚未引入 Alembic，启动时会执行以下兼容修复：
 
-Neo4j 没有迁移工具——图结构变更通过 Service 层代码控制（Cypher 语句写在 service 中），需要改图结构时修改 service 查询即可。
+1. 将 `system_config.allow_self_register` 从 JSON/Text 转为 Boolean，并补齐默认值和非空约束。
+2. 为 `node_embeddings` 补齐 `path_id`、清理无路径或孤儿向量、删除旧 `uq_node_model` 约束、添加 `uq_path_node_model`。
+3. 在条件允许时为 `node_embeddings.path_id` 添加到 `learning_paths.id` 的外键级联。
+
+后续进入生产部署前建议正式引入 Alembic，把上述兼容 SQL 固化为可审计迁移脚本。Neo4j 没有关系型迁移工具，图结构变更继续通过 Service 层 Cypher 语句控制。

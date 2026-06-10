@@ -4,6 +4,7 @@ from datetime import UTC, datetime
 
 from sqlalchemy import func, select
 
+from app.core.config import settings
 from app.core.database import async_session_factory
 from app.core.security import hash_password
 from app.models.system_config import SystemConfig
@@ -12,7 +13,6 @@ from app.models.user import User
 DEFAULT_ADMIN = {
     "name": "admin",
     "email": "admin@edumind.cn",
-    "password": "admin123",
 }
 
 
@@ -34,10 +34,15 @@ async def ensure_admin():
                 print("  ✅ 管理员已存在，跳过初始化")
             return
 
+        if not settings.default_admin_password:
+            print("  ⚠️  未配置 DEFAULT_ADMIN_PASSWORD，跳过内置管理员创建")
+            print("  ℹ️  首位自助注册用户仍会自动成为管理员")
+            return
+
         admin = User(
             name=DEFAULT_ADMIN["name"],
             email=DEFAULT_ADMIN["email"],
-            password_hash=hash_password(DEFAULT_ADMIN["password"]),
+            password_hash=hash_password(settings.default_admin_password),
             role="admin",
             must_change_password=True,
             learner_profile={},
@@ -53,5 +58,5 @@ async def ensure_admin():
             db.add(sys_config)
 
         await db.commit()
-        print(f"  ✅ 内置管理员已创建: {DEFAULT_ADMIN['email']} / {DEFAULT_ADMIN['password']}")
-        print("  ⚠️  首次登录后请立即修改密码！")
+        print(f"  ✅ 内置管理员已创建: {DEFAULT_ADMIN['email']}")
+        print("  ⚠️  首次登录请使用 DEFAULT_ADMIN_PASSWORD，并立即修改密码！")

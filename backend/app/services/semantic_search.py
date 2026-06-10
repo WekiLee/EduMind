@@ -1,6 +1,6 @@
 """语义搜索服务 —— pgvector 向量相似度查询 + 嵌入存储"""
 
-from sqlalchemy import select, text as sa_text
+from sqlalchemy import text as sa_text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
@@ -21,9 +21,10 @@ class SemanticSearchService:
         if vec is None:
             return
 
-        # 删除旧嵌入（同一节点、同一模型）
+        # 删除旧嵌入（同一路径、同一节点、同一模型）
         await db.execute(
             NodeEmbedding.__table__.delete().where(
+                NodeEmbedding.path_id == path_id,
                 NodeEmbedding.node_id == node_id,
                 NodeEmbedding.model_name == self.embedder.model_name,
             )
@@ -40,27 +41,35 @@ class SemanticSearchService:
         db.add(embedding)
         await db.flush()
 
-    async def search(self, db: AsyncSession, query: str, path_id: str | None = None, top_k: int = 5) -> list[dict]:
+    async def search(self, db: AsyncSession, query: str, path_ids: list[str], top_k: int = 5) -> list[dict]:
         """语义搜索：将查询文本转为向量后做相似度搜索"""
         query_vec = await self.embedder.embed(query)
-        if query_vec is None:
+        if query_vec is None or not path_ids:
             return []
 
         # 构建余弦距离查询 (pgvector 的 <=> 操作符)
         vec_str = "[" + ",".join(str(v) for v in query_vec) + "]"
-        where_clause = f"model_name = '{self.embedder.model_name}'"
-        if path_id:
-            where_clause += f" AND path_id = '{path_id}'"
+        params = {
+            "model_name": self.embedder.model_name,
+            "query_vec": vec_str,
+            "top_k": top_k,
+        }
+        path_placeholders = []
+        for idx, path_id in enumerate(path_ids):
+            key = f"path_id_{idx}"
+            path_placeholders.append(f":{key}")
+            params[key] = path_id
 
         sql = f"""
             SELECT node_id, path_id, content_text, model_name,
-                   1 - (embedding <=> '{vec_str}') AS similarity
+                   1 - (embedding <=> CAST(:query_vec AS vector)) AS similarity
             FROM node_embeddings
-            WHERE {where_clause}
+            WHERE model_name = :model_name
+              AND path_id IN ({", ".join(path_placeholders)})
             ORDER BY similarity DESC
-            LIMIT {top_k}
+            LIMIT :top_k
         """
-        results = await db.execute(sa_text(sql))
+        results = await db.execute(sa_text(sql), params)
         rows = results.all()
 
         # 补充节点标题

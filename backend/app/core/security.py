@@ -6,8 +6,11 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
 from passlib.context import CryptContext
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
+from app.core.database import get_db
+from app.models.user import User
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 security = HTTPBearer()
@@ -45,8 +48,35 @@ def decode_access_token(token: str) -> str | None:
         return None
 
 
-def get_current_user_id(credentials: HTTPAuthorizationCredentials = Depends(security)) -> str:
-    """FastAPI 依赖注入：从请求中解析当前用户 ID"""
+async def resolve_active_user_id(token: str, db: AsyncSession) -> str | None:
+    """解析令牌并确认用户仍存在且处于启用状态。"""
+    user_id = decode_access_token(token)
+    if user_id is None:
+        return None
+
+    user = await db.get(User, user_id)
+    if not user or not user.is_active:
+        return None
+    return user.id
+
+
+async def get_current_user_id(
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+    db: AsyncSession = Depends(get_db),
+) -> str:
+    """FastAPI 依赖注入：解析当前启用用户 ID。"""
+    user_id = await resolve_active_user_id(credentials.credentials, db)
+    if user_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="无效、过期或已停用的令牌",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    return user_id
+
+
+def get_token_subject(credentials: HTTPAuthorizationCredentials = Depends(security)) -> str:
+    """仅解析令牌主体；仅用于不需要账号状态的内部测试或诊断。"""
     user_id = decode_access_token(credentials.credentials)
     if user_id is None:
         raise HTTPException(

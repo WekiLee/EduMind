@@ -173,12 +173,13 @@ tail -f /tmp/edumind-backend.log
 
 ## 五、内置管理员
 
-系统首次启动会自动创建内置管理员账号：
+如需系统首次启动时创建内置管理员账号，请先配置后端环境变量 `DEFAULT_ADMIN_PASSWORD`。
+未配置时系统会跳过内置管理员创建，首位自助注册用户会自动成为管理员。
 
 | 字段 | 值 |
 |------|------|
 | 邮箱 | `admin@edumind.cn` |
-| 初始密码 | `admin123` |
+| 初始密码 | 来自 `DEFAULT_ADMIN_PASSWORD` |
 
 > ⚠️ 首次登录必须修改密码。管理员账号仅用于管理，不能创建学习路径。
 
@@ -211,7 +212,7 @@ tail -f /tmp/edumind-backend.log
 | Neo4j | `curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:7474/` | `200` |
 | Redis | `redis-cli ping` | `PONG` |
 | 后端 API | `curl http://127.0.0.1:8000/api/health` | `{"status":"ok"}` |
-| 管理员登录 | 浏览器 `http://localhost:5173` → admin@edumind.cn / admin123 | 进入管理后台 |
+| 管理员登录 | 浏览器 `http://localhost:5173` → `admin@edumind.cn` / `DEFAULT_ADMIN_PASSWORD` | 进入管理后台 |
 | 创建用户 | 管理后台创建普通用户 | 成功创建 |
 | 普通用户学习 | 用普通账号登录→创建学习路径→问答→测验 | 全部正常 |
 

@@ -11,6 +11,26 @@ from app.models.user import User
 
 router = APIRouter(prefix="/users", tags=["用户"])
 
+MODEL_CONFIG_FIELDS = {"provider", "model", "api_base", "api_key"}
+
+
+def build_model_config_update(incoming: dict, existing: dict | None = None) -> dict:
+    """清洗用户级模型配置，区分保留旧密钥与显式清空密钥。"""
+    current = existing or {}
+    cleaned = {
+        k: v
+        for k, v in incoming.items()
+        if k in MODEL_CONFIG_FIELDS and k != "api_key" and v not in (None, "")
+    }
+    api_key = incoming.get("api_key")
+    if isinstance(api_key, str):
+        api_key = api_key.strip()
+    if api_key:
+        cleaned["api_key"] = api_key
+    elif "api_key" not in incoming and current.get("api_key"):
+        cleaned["api_key"] = current["api_key"]
+    return cleaned
+
 
 class UpdateUserRequest(BaseModel):
     name: str | None = None
@@ -37,7 +57,7 @@ async def update_user(
     if req.learner_profile is not None:
         user.learner_profile = req.learner_profile
     if req.model_config is not None:
-        user.model_config = req.model_config
+        user.model_config = build_model_config_update(req.model_config, user.model_config)
     if req.domain_id is not None:
         user.domain_id = req.domain_id
     if req.password:
@@ -48,4 +68,3 @@ async def update_user(
 
     await db.flush()
     return {"data": user.to_dict()}
-

@@ -5,10 +5,11 @@ from datetime import UTC, datetime, timedelta
 from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.guards import require_owned_node, require_owned_path
 from app.core.database import get_db
 from app.core.security import get_current_user_id
 from app.models.path import LearningPath
@@ -96,7 +97,6 @@ async def get_path_progress(
     }
 
 
-@path_progress_router.get("/{path_id}/report")
 @path_progress_router.get("/{path_id}/report/trend")
 async def get_mastery_trend(
     path_id: str,
@@ -105,6 +105,7 @@ async def get_mastery_trend(
     limit: int = 20,
 ):
     """获取掌握度趋势数据（快照列表）"""
+    await require_owned_path(path_id, user_id, db)
     result = await db.execute(
         select(MasterySnapshot)
         .where(
@@ -128,16 +129,14 @@ async def get_mastery_trend(
     }
 
 
+@path_progress_router.get("/{path_id}/report")
 async def get_learning_report(
     path_id: str,
     user_id: str = Depends(get_current_user_id),
     db: AsyncSession = Depends(get_db),
 ):
     """学习报告（掌握度热力图 + 薄弱节点 + 时间统计）"""
-    result = await db.execute(select(LearningPath).where(LearningPath.id == path_id, LearningPath.user_id == user_id))
-    path = result.scalar_one_or_none()
-    if not path:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="学习路径不存在")
+    path = await require_owned_path(path_id, user_id, db)
 
     # 节点进度
     result = await db.execute(
@@ -340,7 +339,7 @@ async def export_learning_report(
 
 
 class StartNodeRequest(BaseModel):
-    pass
+    """开始节点请求体，当前无需额外字段。"""
 
 
 @router.post("/{node_id}/start")
@@ -352,6 +351,9 @@ async def start_node(
     db: AsyncSession = Depends(get_db),
 ):
     """开始学习节点"""
+    path = await require_owned_path(path_id, user_id, db)
+    await require_owned_node(node_id, user_id, db, path.id)
+
     # 查找或创建进度记录
     result = await db.execute(
         select(NodeProgress).where(
@@ -382,7 +384,7 @@ async def start_node(
 
 
 class CompleteNodeRequest(BaseModel):
-    mastery: float = 0.0
+    mastery: float = Field(0.0, ge=0.0, le=1.0)
 
 
 @router.post("/{node_id}/complete")
@@ -394,6 +396,9 @@ async def complete_node(
     db: AsyncSession = Depends(get_db),
 ):
     """完成节点"""
+    path = await require_owned_path(path_id, user_id, db)
+    await require_owned_node(node_id, user_id, db, path.id)
+
     result = await db.execute(
         select(NodeProgress).where(
             NodeProgress.user_id == user_id,

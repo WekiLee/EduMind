@@ -5,10 +5,18 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import admin, auth, learning_paths, nodes, progress, quiz, search, users
+from app.api import admin, analytics, assessment, auth, learning_paths, nodes, progress, quiz, search, users
 from app.api.progress import path_progress_router
 from app.core.config import settings
-from app.core.database import Base, async_session_factory, close_neo4j, close_redis, engine, init_pgvector
+from app.core.database import (
+    Base,
+    async_session_factory,
+    close_neo4j,
+    close_redis,
+    engine,
+    ensure_schema_compatibility,
+    init_pgvector,
+)
 from app.llm.adapter import LLMAdapter
 from app.ws import chat
 
@@ -25,6 +33,12 @@ async def lifespan(app: FastAPI):
     # 启动时创建数据库表（开发环境自动迁移）
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+
+    # 兼容历史数据库结构（项目当前未引入 Alembic）
+    try:
+        await ensure_schema_compatibility()
+    except Exception as e:
+        print(f"  ⚠️  数据库兼容修复跳过: {e}")
 
     # 启动时确保内置管理员账号存在
     try:
@@ -63,7 +77,7 @@ async def lifespan(app: FastAPI):
         async with async_session_factory() as session:
             result = await session.execute(select(SystemConfig).limit(1))
             config = result.scalar_one_or_none()
-            if config and config.llm_api_key:
+            if config:
                 LLMAdapter.update_runtime_config(
                     provider=config.llm_provider,
                     model=config.llm_model,
@@ -108,8 +122,15 @@ app.include_router(quiz.router, prefix="/api/v1")
 app.include_router(chat.router, prefix="/api/v1")
 app.include_router(admin.router, prefix="/api/v1")
 app.include_router(search.router, prefix="/api/v1")
+app.include_router(assessment.router, prefix="/api/v1")
+app.include_router(analytics.router, prefix="/api/v1")
+
+# 兼容用户审查清单中的短路径，核心业务仍推荐使用 /api/v1 前缀。
+app.include_router(assessment.router)
+app.include_router(analytics.router)
 
 
+@app.get("/health")
 @app.get("/api/health")
 async def health_check():
     return {"status": "ok", "version": "0.1.0"}

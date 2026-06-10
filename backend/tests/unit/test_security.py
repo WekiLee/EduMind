@@ -1,14 +1,28 @@
 """Security 单元测试 —— JWT + 密码哈希"""
 
 from datetime import datetime, timedelta, timezone
+from types import SimpleNamespace
+
+import pytest
 
 from app.core.config import settings
 from app.core.security import (
     create_access_token,
     decode_access_token,
     hash_password,
+    resolve_active_user_id,
     verify_password,
 )
+
+
+class FakeUserSession:
+    """用于隔离测试用户状态校验的最小数据库替身。"""
+
+    def __init__(self, user):
+        self.user = user
+
+    async def get(self, _model, _user_id):
+        return self.user
 
 
 class TestPassword:
@@ -75,3 +89,24 @@ class TestJWT:
     def test_decode_returns_user_id(self):
         token = create_access_token("specific-user-id")
         assert decode_access_token(token) == "specific-user-id"
+
+    @pytest.mark.asyncio
+    async def test_resolve_active_user_id_accepts_active_user(self):
+        token = create_access_token("active-user")
+        db = FakeUserSession(SimpleNamespace(id="active-user", is_active=True))
+
+        assert await resolve_active_user_id(token, db) == "active-user"
+
+    @pytest.mark.asyncio
+    async def test_resolve_active_user_id_rejects_inactive_user(self):
+        token = create_access_token("inactive-user")
+        db = FakeUserSession(SimpleNamespace(id="inactive-user", is_active=False))
+
+        assert await resolve_active_user_id(token, db) is None
+
+    @pytest.mark.asyncio
+    async def test_resolve_active_user_id_rejects_deleted_user(self):
+        token = create_access_token("missing-user")
+        db = FakeUserSession(None)
+
+        assert await resolve_active_user_id(token, db) is None

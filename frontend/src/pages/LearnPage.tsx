@@ -8,6 +8,7 @@ import { ChevronRight, MessageSquare, Brain, Send, Maximize2, BarChart3 } from '
 import ReactMarkdown from 'react-markdown';
 import GraphView from '../components/KnowledgeGraph/GraphView';
 import KnowledgeCard from '../components/KnowledgeCard';
+import { showToast } from '../components/common';
 
 interface QuizQuestion {
   id: string;
@@ -77,7 +78,7 @@ export default function LearnPage() {
   // 加载节点
   const loadNode = async (nodeId: string) => {
     try {
-      const { data } = await api.get(`/nodes/${nodeId}`);
+      const { data } = await api.get(`/nodes/${nodeId}`, { params: { path_id: pathId } });
       setCurrentNode(data.data);
       clearChat();
       setQuizQuestions([]);
@@ -129,7 +130,7 @@ export default function LearnPage() {
     if (!currentNode) return;
     setQuizGenerating(true);
     try {
-      const { data } = await api.post(`/nodes/${currentNode.id}/quiz`);
+      const { data } = await api.post(`/nodes/${currentNode.id}/quiz`, null, { params: { path_id: pathId } });
       setQuizQuestions(data.data.questions);
       setQuizAnswers({});
       setQuizResult(null);
@@ -174,8 +175,15 @@ export default function LearnPage() {
         const mastery = data.data.mastery_update ?? data.data.score;
         await api.post(`/nodes/${currentNode.id}/complete`, { mastery }, { params: { path_id: pathId } });
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('提交答案失败', err);
+      const detail = err.response?.data?.detail || '提交答案失败，请稍后重试';
+      showToast('error', detail);
+      if (err.response?.status === 410) {
+        setQuizQuestions([]);
+        setQuizAnswers({});
+        setQuizResult(null);
+      }
     } finally {
       setSubmitting(false);
     }
@@ -299,7 +307,7 @@ export default function LearnPage() {
               <button onClick={goToNextNode} className="flex items-center gap-1 text-gray-500 px-3 py-2 rounded-lg text-sm hover:bg-gray-100">
                 下一节点 <ChevronRight size={16} />
               </button>
-              <button onClick={() => sendExtensionRequest(currentNode.id)} className="flex items-center gap-1 text-gray-500 px-3 py-2 rounded-lg text-sm hover:bg-gray-100">
+              <button onClick={() => sendExtensionRequest(currentNode.id, 'related', pathId)} className="flex items-center gap-1 text-gray-500 px-3 py-2 rounded-lg text-sm hover:bg-gray-100">
                 <Brain size={16} /> 延伸
               </button>
               <button onClick={() => navigate(`/report/${pathId}`)} className="flex items-center gap-1 text-gray-500 px-3 py-2 rounded-lg text-sm hover:bg-gray-100">

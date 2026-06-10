@@ -99,6 +99,7 @@ services:
     ports:
       - "8000:8000"
     environment:
+      ENVIRONMENT: development
       DATABASE_URL: postgresql+asyncpg://edumind:edumind_dev@postgres:5432/edumind
       NEO4J_URI: bolt://neo4j:7687
       NEO4J_USER: neo4j
@@ -243,6 +244,10 @@ docker compose down -v
 ## 六、环境变量说明（backend/.env）
 
 ```bash
+# 运行环境：development / production
+# production 会拒绝默认 DATABASE_URL、NEO4J_PASSWORD 和 JWT_SECRET
+ENVIRONMENT=development
+
 # 数据库
 DATABASE_URL=postgresql+asyncpg://edumind:edumind_dev@localhost:5432/edumind
 NEO4J_URI=bolt://localhost:7687
@@ -259,11 +264,25 @@ OLLAMA_BASE_URL=http://localhost:11434
 JWT_SECRET=change-this-in-production
 JWT_EXPIRATION_HOURS=72
 
+# 内置管理员（可选）
+# 未配置时跳过内置管理员创建，首位自助注册用户自动成为管理员
+DEFAULT_ADMIN_PASSWORD=请使用强随机密码
+
 # CORS
 CORS_ORIGINS=http://localhost:5173
 
 # 数据目录
 DATA_DIR=./data
+```
+
+生产模式必须将 `ENVIRONMENT` 设置为 `production`，并通过部署环境显式提供真实密钥：
+
+```bash
+export ENVIRONMENT=production
+export DATABASE_URL="postgresql+asyncpg://edumind:<强密码>@postgres:5432/edumind"
+export NEO4J_PASSWORD="<强随机密码>"
+export JWT_SECRET="$(openssl rand -hex 32)"
+docker compose --profile prod up -d
 ```
 
 ---

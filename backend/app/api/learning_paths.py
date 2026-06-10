@@ -17,6 +17,7 @@ from app.models.progress import NodeProgress
 from app.models.user import User
 from app.services.content_pipeline import ContentPipelineService
 from app.services.knowledge_graph import KnowledgeGraphService
+from app.services.semantic_search import SemanticSearchService
 
 router = APIRouter(prefix="/learning-paths", tags=["学习路径"])
 
@@ -110,7 +111,11 @@ async def create_path_by_upload(
         path = await pipeline.process_upload(user_id, temp_path, domain_id, topic)
         return {"data": path.to_dict()}
     except Exception as e:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)) from e
+        print(f"  ❌ 上传学习路径生成失败: {type(e).__name__}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="文件解析或学习路径生成失败，请检查文件内容后重试",
+        ) from e
     finally:
         if os.path.exists(temp_path):
             os.remove(temp_path)
@@ -263,12 +268,18 @@ async def delete_learning_path(
     if not path:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="学习路径不存在")
 
-    # 清理图谱
+    # 先清理图谱；失败时中止删除，避免 PostgreSQL 删除后留下不可追踪的图谱孤儿。
     try:
         kg = KnowledgeGraphService()
         await kg.delete_path_graph(path_id)
-    except Exception:
-        pass  # Neo4j 清理失败不影响 PG 删除
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="图谱清理失败，学习路径未删除，请稍后重试",
+        ) from e
+
+    search = SemanticSearchService()
+    await search.delete_path_embeddings(db, path_id)
 
     await db.delete(path)
     await db.flush()

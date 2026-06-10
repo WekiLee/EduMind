@@ -1,11 +1,24 @@
 """测试共享 Fixtures — 集成测试"""
 
-import pytest
+import os
+from urllib.parse import urlparse
+
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 
-from app.core.database import async_session_factory, engine, Base
-from app.main import app
+# 必须在导入 app.core.database 前设置，避免全局 engine 绑定开发库。
+TEST_DATABASE_URL = os.getenv(
+    "TEST_DATABASE_URL",
+    "postgresql+asyncpg://edumind:edumind_dev@localhost:5432/edumind_test",
+)
+parsed_test_db = urlparse(TEST_DATABASE_URL.replace("postgresql+asyncpg://", "postgresql://"))
+test_db_name = parsed_test_db.path.rsplit("/", 1)[-1]
+if not test_db_name.endswith("_test"):
+    raise RuntimeError("测试数据库名称必须以 _test 结尾，已拒绝执行破坏性测试清理")
+os.environ["DATABASE_URL"] = TEST_DATABASE_URL
+
+from app.core.database import Base, async_session_factory, engine, init_pgvector  # noqa: E402
+from app.main import app  # noqa: E402
 
 
 @pytest_asyncio.fixture(scope="session")
@@ -20,7 +33,9 @@ def event_loop():
 @pytest_asyncio.fixture(autouse=True)
 async def setup_database():
     """每个测试前建表，测试后删表"""
+    await init_pgvector()
     async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
         await conn.run_sync(Base.metadata.create_all)
     yield
     async with engine.begin() as conn:

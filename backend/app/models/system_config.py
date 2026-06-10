@@ -3,7 +3,7 @@
 import uuid
 from datetime import UTC, datetime
 
-from sqlalchemy import JSON, Column, DateTime, String, Text
+from sqlalchemy import Boolean, Column, DateTime, String, Text
 
 from app.core.database import Base
 
@@ -18,7 +18,7 @@ class SystemConfig(Base):
     llm_model = Column(String(100), nullable=False, default="deepseek-v4-flash")
     llm_api_key = Column(Text, nullable=True)  # 管理员配置的 API Key
     llm_api_base = Column(String(500), nullable=True, default="https://api.deepseek.com/v1")
-    allow_self_register = Column(JSON, default=True)  # 是否允许用户自助注册
+    allow_self_register = Column(Boolean, nullable=False, default=True)  # 是否允许用户自助注册
     updated_by = Column(String(36), nullable=True)  # 最后修改的管理员 ID
     updated_at = Column(
         DateTime(timezone=True),

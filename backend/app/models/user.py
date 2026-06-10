@@ -29,6 +29,17 @@ class User(Base):
         onupdate=lambda: datetime.now(UTC),
     )
 
+    @staticmethod
+    def _public_model_config(model_config: dict | None) -> dict | None:
+        """返回脱敏后的用户级模型配置。"""
+        if not model_config:
+            return None
+        public_config = {k: v for k, v in model_config.items() if k != "api_key"}
+        api_key = model_config.get("api_key")
+        if api_key:
+            public_config["api_key_masked"] = api_key[:6] + "****" + api_key[-4:] if len(api_key) > 12 else "****"
+        return public_config
+
     def to_dict(self) -> dict:
         return {
             "id": self.id,
@@ -40,7 +51,7 @@ class User(Base):
             "organization": self.organization,
             "domain_id": self.domain_id,
             "learner_profile": self.learner_profile,
-            "model_config": self.model_config,
+            "model_config": self._public_model_config(self.model_config),
             "created_at": self.created_at.isoformat() if self.created_at else None,
         }
 

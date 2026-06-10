@@ -1,18 +1,31 @@
 """配置管理 —— 应用设置"""
 
+from pydantic import model_validator
 from pydantic_settings import BaseSettings
 
 
+DEFAULT_DATABASE_URL = "postgresql+asyncpg://edumind:edumind_dev@localhost:5432/edumind"
+DEFAULT_NEO4J_PASSWORD = "edumind_dev"
+DEFAULT_JWT_SECRET = "change-this-in-production"
+INSECURE_JWT_SECRETS = {
+    DEFAULT_JWT_SECRET,
+    "edumind-dev-secret",
+    "edumind-dev-secret-change-in-production",
+}
+
+
 class Settings(BaseSettings):
+    environment: str = "development"
+
     # ── 数据库 ──
-    database_url: str = "postgresql+asyncpg://edumind:edumind_dev@localhost:5432/edumind"
+    database_url: str = DEFAULT_DATABASE_URL
     neo4j_uri: str = "bolt://localhost:7687"
     neo4j_user: str = "neo4j"
-    neo4j_password: str = "edumind_dev"
+    neo4j_password: str = DEFAULT_NEO4J_PASSWORD
     redis_url: str = "redis://localhost:6379/0"
 
     # ── JWT ──
-    jwt_secret: str = "change-this-in-production"
+    jwt_secret: str = DEFAULT_JWT_SECRET
     jwt_algorithm: str = "HS256"
     jwt_expiration_hours: int = 72
 
@@ -34,6 +47,7 @@ class Settings(BaseSettings):
     # ── 服务 ──
     cors_origins: str = "http://localhost:5173,http://localhost:3000"
     data_dir: str = "./data"
+    default_admin_password: str | None = None
 
     # ── 内容管道 ──
     max_upload_size_mb: int = 50
@@ -60,6 +74,25 @@ class Settings(BaseSettings):
     session_cache_ttl: int = 7200
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
+
+    @model_validator(mode="after")
+    def validate_production_secrets(self) -> "Settings":
+        """生产环境禁止继续使用开发默认密钥。"""
+        if self.environment.lower() not in {"prod", "production"}:
+            return self
+
+        insecure_fields = []
+        if self.jwt_secret in INSECURE_JWT_SECRETS or len(self.jwt_secret) < 32:
+            insecure_fields.append("JWT_SECRET")
+        if self.database_url == DEFAULT_DATABASE_URL or "edumind_dev" in self.database_url:
+            insecure_fields.append("DATABASE_URL")
+        if self.neo4j_password == DEFAULT_NEO4J_PASSWORD:
+            insecure_fields.append("NEO4J_PASSWORD")
+
+        if insecure_fields:
+            joined = ", ".join(insecure_fields)
+            raise ValueError(f"生产环境禁止使用默认开发密钥或密码: {joined}")
+        return self
 
 
 settings = Settings()

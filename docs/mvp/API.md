@@ -14,9 +14,74 @@
 | **响应格式** | 成功：`{"data": ...}` 失败：`{"detail": "message"}` |
 | **分页** | `?page=1&size=20` → `{"data": [...], "total": 100, "page": 1, "size": 20}` |
 
+> 兼容入口：`/health`、`/assessment`、`/analytics` 也可访问，但业务集成推荐使用 `/api/v1` 前缀。
+
 ---
 
-## 二、Auth
+## 二、Health / Assessment / Analytics
+
+### GET /health
+
+健康检查。兼容路径：`/api/health`。
+
+```json
+// Response 200
+{ "status": "ok", "version": "0.1.0" }
+```
+
+### POST /api/v1/assessment
+
+兼容性评估入口，要求登录用户只能提交自己的 `user_id`。该接口只统计非零答案数量，未经过题目难度、标准答案和公平性校准，不得单独用于高影响教育决策。
+
+```json
+// Request
+{
+  "user_id": "u_001",
+  "subject": "Mathematics",
+  "answers": [1, 0, 2, 1, 3, 0, 2, 1, 0, 3]
+}
+
+// Response 200
+{
+  "data": {
+    "user_id": "u_001",
+    "subject": "Mathematics",
+    "score": 7,
+    "total": 10,
+    "percentage": 70.0,
+    "difficulty_level": "intermediate",
+    "timestamp": "2026-06-09T09:00:00+00:00",
+    "assessment_method": "compatibility_count_positive_answers",
+    "calibrated": false,
+    "confidence": "low",
+    "interpretation": "该兼容接口仅统计非零答案数量，不代表经过校准的真实能力评估。",
+    "fairness_note": "结果不得单独用于分班、升学、奖惩等高影响教育决策。",
+    "recommendation": "建议继续当前难度，并补充针对性练习。"
+  }
+}
+```
+
+### GET /api/v1/analytics
+
+当前用户学习分析摘要。
+
+```json
+// Response 200
+{
+  "data": {
+    "total_paths": 2,
+    "completed_paths": 1,
+    "total_nodes": 20,
+    "completed_nodes": 12,
+    "progress_pct": 60.0,
+    "overall_mastery": 0.72,
+    "total_quizzes": 8,
+    "average_quiz_score": 0.76
+  }
+}
+```
+
+## 三、Auth
 
 ### POST /api/v1/auth/register
 
@@ -49,23 +114,34 @@
 
 ---
 
-## 三、Users
+## 四、Users
 
 ### PATCH /api/v1/users/me
 
-更新用户信息（包括 learner_profile 配置）。
+更新用户信息（包括 learner_profile 和个人模型配置）。
 
 ```json
 // Request
-{ "name": "string?", "learner_profile": {...}? }
+{
+  "name": "string?",
+  "learner_profile": {...}?,
+  "model_config": {
+    "provider": "openai-compatible?",
+    "model": "deepseek-chat?",
+    "api_base": "https://api.example.com/v1?",
+    "api_key": "string?"
+  }
+}
 
 // Response 200
 { "data": { ... } }
 ```
 
+`model_config.api_key` 省略表示保留旧密钥；传入空字符串或 `null` 表示清空个人密钥。响应中只返回 `api_key_masked`，不会返回明文密钥。
+
 ---
 
-## 四、Learning Paths
+## 五、Learning Paths
 
 ### POST /api/v1/learning-paths
 
@@ -189,7 +265,7 @@
 
 ---
 
-## 五、Knowledge Nodes
+## 六、Knowledge Nodes
 
 ### GET /api/v1/nodes/{node_id}
 
@@ -245,7 +321,7 @@
 
 ---
 
-## 六、Progress
+## 七、Progress
 
 ### GET /api/v1/learning-paths/{path_id}/progress
 
@@ -271,7 +347,7 @@
 
 ### POST /api/v1/nodes/{node_id}/start
 
-开始学习节点。记录开始时间，状态改为 `learning`。
+开始学习节点。记录开始时间，状态改为 `learning`，必须通过查询参数传入 `path_id`。
 
 ```json
 // Response 200
@@ -280,7 +356,7 @@
 
 ### POST /api/v1/nodes/{node_id}/complete
 
-完成节点（前端在评估通过后调用）。
+完成节点（前端在评估通过后调用），必须通过查询参数传入 `path_id`。
 
 ```json
 // Request
@@ -297,13 +373,52 @@
 }
 ```
 
+### GET /api/v1/learning-paths/{path_id}/report
+
+学习报告，供前端仪表盘和报告页使用。
+
+```json
+// Response 200
+{
+  "data": {
+    "module_mastery": [
+      { "module_name": "基础概念", "total_nodes": 5, "completed": 4, "avg_mastery": 0.8 }
+    ],
+    "weak_nodes": [
+      { "node_id": "n1", "title": "变量", "mastery": 0.4, "status": "learning" }
+    ],
+    "quiz_history": [
+      { "node_id": "n1", "score": 0.7, "created_at": "iso8601" }
+    ],
+    "total_quizzes": 3,
+    "overall_mastery": 0.65,
+    "total_nodes": 20,
+    "completed_nodes": 11,
+    "in_progress_nodes": 2
+  }
+}
+```
+
+### GET /api/v1/learning-paths/{path_id}/report/trend
+
+掌握度趋势快照。
+
+```json
+// Response 200
+{
+  "data": [
+    { "recorded_at": "iso8601", "overall_mastery": 0.65, "completed_nodes": 11, "total_nodes": 20 }
+  ]
+}
+```
+
 ---
 
-## 七、Quiz
+## 八、Quiz
 
 ### POST /api/v1/nodes/{node_id}/quiz
 
-为节点生成测验。LLM 根据节点内容 + Domain Profile 出题。
+为节点生成测验。LLM 根据节点内容 + Domain Profile 出题，推荐通过查询参数传入 `path_id` 以隔离测验缓存。
 
 ```json
 // Response 200
@@ -358,9 +473,40 @@
 }
 ```
 
+如果答题卡缓存已过期，服务端返回 410，客户端应重新调用生成测验接口后再提交：
+
+```json
+// Response 410
+{ "detail": "测验已过期，请重新生成后再提交" }
+```
+
 ---
 
-## 八、WebSocket 协议
+## 九、Admin
+
+### PUT /api/v1/admin/config
+
+更新系统配置，仅管理员可访问。
+
+```json
+// Request
+{
+  "llm_provider": "openai-compatible",
+  "llm_model": "deepseek-v4-flash",
+  "llm_api_key": "string?",
+  "llm_api_base": "https://api.deepseek.com/v1",
+  "allow_self_register": true
+}
+
+// Response 200
+{ "data": { "llm_provider": "...", "llm_model": "...", "allow_self_register": true } }
+```
+
+`llm_api_key` 省略表示不修改系统密钥；传入空字符串或 `null` 表示清空系统密钥，并同步清除当前进程中的运行时密钥。
+
+---
+
+## 十、WebSocket 协议
 
 ### 连接
 
@@ -381,13 +527,18 @@ ws://host/api/v1/ws/chat?token=JWT_TOKEN
 {
   "type": "message",
   "node_id": "neo4j-node-uuid",
+  "path_id": "learning-path-uuid",
+  "session_id": "已有会话可选",
   "content": "为什么变量不能以数字开头？"
 }
+
+> `session_id` 仅允许恢复同一用户、同一路径、同一节点的会话；跨路径或跨节点复用会被拒绝。
 
 // 请求延伸
 {
   "type": "extend",
   "node_id": "neo4j-node-uuid",
+  "path_id": "learning-path-uuid",
   "direction": "related"   // prerequisite | related | next
 }
 
@@ -443,7 +594,7 @@ ws://host/api/v1/ws/chat?token=JWT_TOKEN
 
 ---
 
-## 九、错误码
+## 十一、错误码
 
 | HTTP | WS code | 含义 |
 |------|---------|------|
@@ -454,11 +605,13 @@ ws://host/api/v1/ws/chat?token=JWT_TOKEN
 | 409 | conflict | 冲突（如重复创建） |
 | 422 | validation_error | 数据校验失败 |
 | 500 | internal_error | 服务器内部错误 |
-| 503 | service_unavailable | LLM 服务不可用 |
+| 503 | service_unavailable | 外部依赖不可用，如 LLM、Redis 答题卡缓存或 Neo4j 图谱清理失败 |
+
+WebSocket 还会返回 `invalid_payload`（非法 JSON 或非对象消息）和 `invalid_audio`（非法 base64 音频数据）。这些错误只影响当前消息，不会主动断开连接。
 
 ---
 
-## 十、内容管道（异步任务）
+## 十二、内容管道（异步任务）
 
 在 MVP 中，内容管道以同步模式运行（用户等待完成），或用简单轮询：
 

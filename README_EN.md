@@ -114,18 +114,23 @@ docker compose logs -f backend
 #### Production Mode
 
 ```bash
-docker compose --profile prod build
+export DATABASE_URL="postgresql+asyncpg://edumind:<strong-password>@postgres:5432/edumind"
+export NEO4J_PASSWORD="<strong-random-password>"
 export JWT_SECRET=$(openssl rand -hex 32)
+docker compose --profile prod build
 docker compose --profile prod up -d
 ```
 
 ---
 
-## Default Admin
+## Admin Initialization
 
-| Email | Password | Notes |
-|-------|----------|-------|
-| admin@edumind.cn | admin123 | Password must be changed on first login |
+Set `DEFAULT_ADMIN_PASSWORD` in the backend environment if you want the app to create the built-in admin account on first startup.
+If it is not set, the built-in admin is skipped and the first self-registered user becomes an admin.
+
+| Email | Password Source | Notes |
+|-------|-----------------|-------|
+| admin@edumind.cn | `DEFAULT_ADMIN_PASSWORD` | Password must be changed on first login |
 
 ---
 

@@ -133,6 +133,13 @@ export default function SettingsPage() {
     const mc = user?.model_config;
     return mc && typeof mc === "object" ? mc as Record<string, string> : undefined;
   });
+  const [modelApiKeyTouched, setModelApiKeyTouched] = useState(false);
+
+  useEffect(() => {
+    const mc = user?.model_config;
+    setModelConfig(mc && typeof mc === "object" ? mc as Record<string, string> : undefined);
+    setModelApiKeyTouched(false);
+  }, [user?.model_config]);
 
   const update = <G extends keyof LearnerProfile>(group: G, field: keyof LearnerProfile[G], value: any) => {
     setProfile((prev) => ({
@@ -377,8 +384,24 @@ export default function SettingsPage() {
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">API Key</label>
                 <input type="password" value={modelConfig?.api_key || ''}
-                  onChange={(e) => setModelConfig({ ...(modelConfig || {}), api_key: e.target.value })}
+                  onChange={(e) => {
+                    setModelApiKeyTouched(true);
+                    setModelConfig({ ...(modelConfig || {}), api_key: e.target.value });
+                  }}
                   placeholder="可选，留空使用系统配置" className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" />
+                {modelConfig?.api_key_masked && !modelApiKeyTouched && !modelConfig?.api_key && (
+                  <div className="flex items-center justify-between gap-3 mt-1">
+                    <p className="text-xs text-gray-400">已配置：{modelConfig.api_key_masked}</p>
+                    <button type="button"
+                      onClick={() => {
+                        setModelApiKeyTouched(true);
+                        setModelConfig({ ...(modelConfig || {}), api_key: '' });
+                      }}
+                      className="text-xs text-red-600 hover:underline">
+                      清空 API Key
+                    </button>
+                  </div>
+                )}
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">API Base URL</label>
@@ -388,7 +411,18 @@ export default function SettingsPage() {
               </div>
               <button onClick={async () => {
                 try {
-                  await api.patch('/users/me', { model_config: modelConfig || {} });
+                  const cleanedConfig: Record<string, string> = {};
+                  for (const [key, value] of Object.entries(modelConfig || {})) {
+                    if (key === 'api_key_masked') continue;
+                    if (key === 'api_key') {
+                      if (modelApiKeyTouched || value) cleanedConfig.api_key = value || '';
+                      continue;
+                    }
+                    if (value !== '') cleanedConfig[key] = value;
+                  }
+                  await api.patch('/users/me', { model_config: cleanedConfig });
+                  setModelApiKeyTouched(false);
+                  await loadUser();
                   showToast('success', '模型配置已保存');
                 } catch { showToast('error', '保存失败'); }
               }} className="text-sm bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700">

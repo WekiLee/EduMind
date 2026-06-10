@@ -11,10 +11,12 @@ from app.llm.adapter import LLMAdapter
 from app.models.path import LearningPath
 from app.models.progress import NodeProgress
 from app.models.quiz import ChatMessage, ChatSession, QuizAttempt
+from app.models.snapshot import MasterySnapshot
 from app.models.system_config import SystemConfig
 from app.models.user import User
 from app.services.knowledge_graph import KnowledgeGraphService
 from app.services.mcp_client import get_mcp_manager
+from app.services.semantic_search import SemanticSearchService
 
 router = APIRouter(prefix="/admin", tags=["管理员"])
 
@@ -31,6 +33,44 @@ async def require_admin(user_id: str = Depends(get_current_user_id), db: AsyncSe
     if not user.is_active:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="账号已被禁用")
     return user
+
+
+def remove_node_from_syllabus(syllabus: list[dict] | None, node_id: str) -> tuple[list[dict], bool]:
+    """从路径大纲中移除指定节点，返回新大纲和是否发生变更。"""
+    changed = False
+    cleaned: list[dict] = []
+    for module in syllabus or []:
+        node_ids = module.get("node_ids", []) or []
+        next_node_ids = [nid for nid in node_ids if nid != node_id]
+        if len(next_node_ids) != len(node_ids):
+            changed = True
+        cleaned.append({**module, "node_ids": next_node_ids})
+    return cleaned, changed
+
+
+def remove_node_from_mastery_snapshot(snapshot: dict | None, node_id: str) -> tuple[dict, bool]:
+    """从掌握度快照中移除指定节点，并重算聚合字段。"""
+    if not snapshot:
+        return {}, False
+
+    nodes = snapshot.get("nodes")
+    if not isinstance(nodes, list):
+        return dict(snapshot), False
+
+    next_nodes = [node for node in nodes if node.get("node_id") != node_id]
+    if len(next_nodes) == len(nodes):
+        return dict(snapshot), False
+
+    total_mastery = sum((node.get("mastery", 0) or 0) for node in next_nodes)
+    completed_nodes = sum(1 for node in next_nodes if node.get("status") == "completed")
+    cleaned = {
+        **snapshot,
+        "nodes": next_nodes,
+        "total_nodes": len(next_nodes),
+        "completed_nodes": completed_nodes,
+        "overall_mastery": round(total_mastery / len(next_nodes), 2) if next_nodes else 0.0,
+    }
+    return cleaned, True
 
 
 # ── 用户管理 ──
@@ -178,15 +218,35 @@ async def delete_user(
         if (count_result.scalar() or 0) <= 1:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="不能删除最后一个管理员")
 
-    # 级联删除相关数据
+    path_result = await db.execute(select(LearningPath.id).where(LearningPath.user_id == user_id))
+    path_ids = list(path_result.scalars().all())
+    session_result = await db.execute(select(ChatSession.id).where(ChatSession.user_id == user_id))
+    session_ids = list(session_result.scalars().all())
 
-    for table in [ChatSession, QuizAttempt, NodeProgress, LearningPath]:
-        await db.execute(table.__table__.delete().where(table.user_id == user_id))  # type: ignore[attr-defined]
-    await db.execute(
-        ChatMessage.__table__.delete().where(  # type: ignore[attr-defined]
-            ChatMessage.session_id.in_(select(ChatSession.id).where(ChatSession.user_id == user_id))
+    # 先清理外部存储；失败时中止删除，避免 PostgreSQL 父记录删除后丢失清理条件。
+    kg = KnowledgeGraphService()
+    for path_id in path_ids:
+        try:
+            await kg.delete_path_graph(path_id)
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail=f"图谱清理失败，用户未删除，请稍后重试: {path_id}",
+            ) from e
+
+    search = SemanticSearchService()
+    for path_id in path_ids:
+        await search.delete_path_embeddings(db, path_id)
+
+    # 按依赖顺序删除，避免先删 ChatSession 后无法定位 ChatMessage。
+    if session_ids:
+        await db.execute(
+            ChatMessage.__table__.delete().where(ChatMessage.session_id.in_(session_ids))  # type: ignore[attr-defined]
         )
-    )
+    await db.execute(QuizAttempt.__table__.delete().where(QuizAttempt.user_id == user_id))  # type: ignore[attr-defined]
+    await db.execute(NodeProgress.__table__.delete().where(NodeProgress.user_id == user_id))  # type: ignore[attr-defined]
+    await db.execute(ChatSession.__table__.delete().where(ChatSession.user_id == user_id))  # type: ignore[attr-defined]
+    await db.execute(LearningPath.__table__.delete().where(LearningPath.user_id == user_id))  # type: ignore[attr-defined]
     await db.delete(user)
     await db.flush()
 
@@ -245,8 +305,8 @@ async def update_config(
         config.llm_provider = req.llm_provider
     if req.llm_model is not None:
         config.llm_model = req.llm_model
-    if req.llm_api_key is not None:
-        config.llm_api_key = req.llm_api_key
+    if "llm_api_key" in req.model_fields_set:
+        config.llm_api_key = req.llm_api_key.strip() if req.llm_api_key else None
     if req.llm_api_base is not None:
         config.llm_api_base = req.llm_api_base
     if req.allow_self_register is not None:
@@ -361,12 +421,41 @@ async def admin_update_node(
 async def admin_delete_node(
     node_id: str,
     admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
 ):
-    """管理员删除节点"""
+    """管理员删除节点，并清理所有 PostgreSQL 与向量引用。"""
     kg = KnowledgeGraphService()
     existing = await kg.get_node(node_id)
     if not existing:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="节点不存在")
+
+    path_result = await db.execute(select(LearningPath))
+    paths = path_result.scalars().all()
+    for path in paths:
+        cleaned_syllabus, changed = remove_node_from_syllabus(path.syllabus, node_id)
+        if changed:
+            path.syllabus = cleaned_syllabus
+
+    snapshot_result = await db.execute(select(MasterySnapshot))
+    snapshots = snapshot_result.scalars().all()
+    for snapshot in snapshots:
+        cleaned_snapshot, changed = remove_node_from_mastery_snapshot(snapshot.snapshot, node_id)
+        if changed:
+            snapshot.snapshot = cleaned_snapshot
+
+    session_result = await db.execute(select(ChatSession.id).where(ChatSession.node_id == node_id))
+    session_ids = list(session_result.scalars().all())
+    if session_ids:
+        await db.execute(
+            ChatMessage.__table__.delete().where(ChatMessage.session_id.in_(session_ids))  # type: ignore[attr-defined]
+        )
+
+    await db.execute(QuizAttempt.__table__.delete().where(QuizAttempt.node_id == node_id))  # type: ignore[attr-defined]
+    await db.execute(NodeProgress.__table__.delete().where(NodeProgress.node_id == node_id))  # type: ignore[attr-defined]
+    await db.execute(ChatSession.__table__.delete().where(ChatSession.node_id == node_id))  # type: ignore[attr-defined]
+    await SemanticSearchService().delete_node_embeddings(db, node_id)
+    await db.flush()
+
     await kg.delete_node(node_id)
 
 

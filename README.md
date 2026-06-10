@@ -158,12 +158,13 @@ docker compose down
 #### 生产模式
 
 ```bash
+# 生产环境需先通过环境变量传入真实连接串和密钥
+export DATABASE_URL="postgresql+asyncpg://edumind:<强密码>@postgres:5432/edumind"
+export NEO4J_PASSWORD="<强随机密码>"
+export JWT_SECRET=$(openssl rand -hex 32)
+
 # 构建镜像并启动（多阶段构建，无源码挂载）
 docker compose --profile prod build
-docker compose --profile prod up -d
-
-# 生产环境需通过环境变量传入 JWT_SECRET
-export JWT_SECRET=$(openssl rand -hex 32)
 docker compose --profile prod up -d
 ```
 
@@ -171,11 +172,14 @@ docker compose --profile prod up -d
 
 ---
 
-## 默认管理员
+## 管理员初始化
 
-| 邮箱 | 密码 | 说明 |
-|------|------|------|
-| admin@edumind.cn | admin123 | 首次登录必须修改密码 |
+如需系统首次启动时创建内置管理员，请在后端环境变量中配置 `DEFAULT_ADMIN_PASSWORD`。
+未配置时不会创建内置管理员，首位自助注册用户会自动成为管理员。
+
+| 邮箱 | 密码来源 | 说明 |
+|------|----------|------|
+| admin@edumind.cn | `DEFAULT_ADMIN_PASSWORD` | 首次登录必须修改密码 |
 
 管理员登录后可在 `/admin/users` 创建普通用户，在 `/admin/config` 配置 LLM。
 

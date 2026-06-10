@@ -27,8 +27,8 @@ numpy>=1.24
 # faster-whisper 可选（体积较大），首次使用需先安装：
 # pip install faster-whisper
 
-# 向量搜索（可选 — pgvector 集成）
-# pgvector>=0.3.0
+# 向量搜索（pgvector 字段支持为启动必需依赖）
+pgvector>=0.3.0
 # sentence-transformers>=3.0  # 本地嵌入模型（如不使用本地可跳过）
 
 # 测试
@@ -36,3 +36,5 @@ pytest>=8.0
 pytest-asyncio>=0.24
 pytest-mock>=3.14
 pytest-cov>=5.0
+ruff>=0.8
+mypy>=1.13

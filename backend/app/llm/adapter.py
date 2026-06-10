@@ -13,6 +13,8 @@ litellm.request_timeout = 30  # LLM 调用超时 30 秒
 from app.core.config import settings
 from app.services.learner_profile import normalize as normalize_profile
 
+_RUNTIME_CONFIG_UNSET = object()
+
 
 class LLMAdapter:
     """
@@ -39,16 +41,22 @@ class LLMAdapter:
         self._setup_provider()
 
     @classmethod
-    def update_runtime_config(cls, provider: str = None, model: str = None, api_key: str = None, api_base: str = None):
-        """由管理员 API 调用，动态更新 LLM 配置"""
-        if provider:
+    def update_runtime_config(
+        cls,
+        provider: str | None = None,
+        model: str | None = None,
+        api_key: str | None | object = _RUNTIME_CONFIG_UNSET,
+        api_base: str | None = None,
+    ) -> None:
+        """由管理员 API 调用，动态更新 LLM 配置，支持显式清空 API Key。"""
+        if provider is not None:
             cls._runtime_provider = provider
-        if model:
+        if model is not None:
             cls._runtime_model = model
-        if api_key:
-            cls._runtime_api_key = api_key
-        if api_base:
-            cls._runtime_api_base = api_base
+        if api_key is not _RUNTIME_CONFIG_UNSET:
+            cls._runtime_api_key = str(api_key).strip() if api_key else None
+        if api_base is not None:
+            cls._runtime_api_base = api_base or None
 
     def with_user_config(self, model_config: dict | None) -> "LLMAdapter":
         """返回一个使用用户级模型配置的 LLMAdapter 副本"""

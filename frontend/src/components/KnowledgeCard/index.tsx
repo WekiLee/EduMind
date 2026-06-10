@@ -1,6 +1,7 @@
 /** 知识卡片组件 — 按 domain_id 选择模板渲染，支持 KaTeX 公式 */
 
 import katex from 'katex';
+import DOMPurify from 'dompurify';
 
 // 确保 KaTeX CSS 被加载
 import 'katex/dist/katex.min.css';
@@ -64,7 +65,7 @@ function renderContent(text: string) {
     }
     // 检查是否包含 LaTeX 公式
     if (part.includes('$')) {
-      const html = renderLatex(part);
+      const html = DOMPurify.sanitize(renderLatex(part));
       return <div key={i} className="whitespace-pre-wrap text-sm leading-relaxed mb-2" dangerouslySetInnerHTML={{ __html: html }} />;
     }
     return (
@@ -142,7 +143,7 @@ function renderProgrammingContent(text: string) {
       return <MonacoCodeBlock key={i} code={codeMatch[2]} language={codeMatch[1]} />;
     }
     if (part.includes('$')) {
-      const html = renderLatex(part);
+      const html = DOMPurify.sanitize(renderLatex(part));
       return <div key={i} className="whitespace-pre-wrap text-sm leading-relaxed mb-2" dangerouslySetInnerHTML={{ __html: html }} />;
     }
     return (
@@ -153,7 +154,7 @@ function renderProgrammingContent(text: string) {
 
 /** 编程卡片（Monaco 编辑器代码块） */
 function ProgrammingCard({ node }: KnowledgeCardProps) {
-  return <div>{renderContent(node.content)}</div>;
+  return <div>{renderProgrammingContent(node.content)}</div>;
 }
 
 /** 语言卡片（发音/语法提示） */

@@ -4,6 +4,8 @@ import uuid
 
 from app.core.database import get_neo4j_driver
 
+ALLOWED_RELATION_TYPES = {"PREREQUISITE", "RELATED", "EXTENDS"}
+
 
 class KnowledgeGraphService:
     """知识图谱增删改查，所有 Cypher 查询封装在此"""
@@ -123,6 +125,7 @@ class KnowledgeGraphService:
 
     async def create_relation(self, from_node_id: str, to_node_id: str, rel_type: str, strength: int = 1):
         """创建节点间关系"""
+        rel_type = rel_type if rel_type in ALLOWED_RELATION_TYPES else "RELATED"
         query = f"""
         MATCH (a:KnowledgeNode {{id: $from_id}})
         MATCH (b:KnowledgeNode {{id: $to_id}})

@@ -118,7 +118,7 @@ export function stopRecording(): Promise<{ blob: Blob; base64: string }> {
       _clearVadState(); mediaRecorder?.stream.getTracks().forEach((t) => t.stop());
       reject(new Error('Record failed')); mediaRecorder = null;
     };
-    if (mediaRecorder.state !== 'inactive') { mediaRecorder.stop(); }
+    mediaRecorder.stop();
   });
 }
 

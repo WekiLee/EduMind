@@ -100,9 +100,9 @@ export function sendAudioMessage(base64Data: string, nodeId: string, pathId?: st
   }
 }
 
-export function sendExtensionRequest(nodeId: string, direction = 'related') {
+export function sendExtensionRequest(nodeId: string, direction = 'related', pathId?: string) {
   if (ws?.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify({ type: 'extend', node_id: nodeId, direction }));
+    ws.send(JSON.stringify({ type: 'extend', node_id: nodeId, direction, path_id: pathId }));
   }
 }
 

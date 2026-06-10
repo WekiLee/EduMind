@@ -1,40 +1,94 @@
 """WebSocket 教学对话 —— 实时文字聊天，支持断线重连上下文恢复"""
 
-                # ── 加载路径级 Learner Profile 覆盖（仅首次） ──
 import base64
+import binascii
 import json
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from sqlalchemy import select
 
+from app.api.guards import require_owned_node
 from app.core.database import async_session_factory, get_redis
-from app.core.security import decode_access_token
+from app.core.security import resolve_active_user_id
 from app.llm.adapter import LLMAdapter
 from app.models.quiz import ChatMessage, ChatSession
+from app.models.user import User
 from app.services.domain_profile import load_domain_profile
 from app.services.knowledge_graph import KnowledgeGraphService
+from app.services.learner_profile import DEFAULT_LEARNER_PROFILE
+from app.services.learner_profile import normalize as normalize_profile
 from app.services.voice import synthesize_speech, transcribe_audio
 
-# ── 路径级 Profile 覆盖标记（避免重复加载）──
-_profile_override_loaded = object()  # 简单对象，可附加属性
-
-# ── 路径级 Profile 覆盖标记（避免重复加载）──
-_profile_override_loaded = object()
 router = APIRouter()
 
 
-async def load_chat_history(session_id: str) -> list[dict]:
+def decode_ws_payload(raw: str) -> tuple[dict | None, dict | None]:
+    """解析 WebSocket JSON 消息，失败时返回错误响应。"""
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError:
+        return None, {
+            "type": "error",
+            "code": "invalid_payload",
+            "message": "消息格式不是合法 JSON",
+        }
+    if not isinstance(data, dict):
+        return None, {
+            "type": "error",
+            "code": "invalid_payload",
+            "message": "消息内容必须是 JSON 对象",
+        }
+    return data, None
+
+
+def decode_audio_payload(audio_b64: object) -> tuple[bytes | None, dict | None]:
+    """解析 base64 音频载荷，失败时返回错误响应。"""
+    if not isinstance(audio_b64, str) or not audio_b64:
+        return None, {"type": "error", "code": "no_audio", "message": "未收到音频数据"}
+    try:
+        return base64.b64decode(audio_b64, validate=True), None
+    except (binascii.Error, ValueError):
+        return None, {
+            "type": "error",
+            "code": "invalid_audio",
+            "message": "音频数据格式不正确",
+        }
+
+
+def _session_matches_context(sess: ChatSession | None, user_id: str, path_id: str, node_id: str) -> bool:
+    """确认会话归属与当前教学上下文一致。"""
+    return bool(
+        sess
+        and sess.user_id == user_id
+        and sess.path_id == path_id
+        and sess.node_id == node_id
+    )
+
+
+async def load_chat_history(session_id: str, user_id: str, path_id: str, node_id: str) -> list[dict] | None:
     """从 PostgreSQL 加载历史消息"""
     if not session_id:
         return []
 
     async with async_session_factory() as db:
+        sess = await db.get(ChatSession, session_id)
+        if not _session_matches_context(sess, user_id, path_id, node_id):
+            return None
         result = await db.execute(
             select(ChatMessage).where(ChatMessage.session_id == session_id).order_by(ChatMessage.created_at.asc())
         )
         msgs = result.scalars().all()
         return [{"role": msg.role, "content": msg.content} for msg in msgs]
+
+
+async def validate_chat_session(session_id: str, user_id: str, path_id: str, node_id: str) -> bool:
+    """恢复会话前先校验会话与当前路径/节点一致，避免跨上下文串话。"""
+    if not session_id:
+        return False
+    async with async_session_factory() as db:
+        sess = await db.get(ChatSession, session_id)
+        return _session_matches_context(sess, user_id, path_id, node_id)
 
 
 async def save_message(session_id: str, role: str, content: str):
@@ -45,12 +99,12 @@ async def save_message(session_id: str, role: str, content: str):
         await db.commit()
 
 
-async def cache_context_to_redis(session_id: str, messages: list[dict]):
+async def cache_context_to_redis(user_id: str, session_id: str, messages: list[dict]):
     """将上下文缓存到 Redis（用于断线快速恢复）"""
     try:
         redis = await get_redis()
         await redis.setex(
-            f"chat_ctx:{session_id}",
+            f"chat_ctx:{user_id}:{session_id}",
             7200,  # 2h 过期
             json.dumps(messages[-20:]),  # 只缓存最近 20 条
         )
@@ -58,11 +112,11 @@ async def cache_context_to_redis(session_id: str, messages: list[dict]):
         pass  # Redis 不可用时降级，不影响主流程
 
 
-async def load_context_from_redis(session_id: str) -> list[dict] | None:
+async def load_context_from_redis(user_id: str, session_id: str) -> list[dict] | None:
     """从 Redis 恢复上下文"""
     try:
         redis = await get_redis()
-        data = await redis.get(f"chat_ctx:{session_id}")
+        data = await redis.get(f"chat_ctx:{user_id}:{session_id}")
         if data:
             return json.loads(data)
     except Exception:
@@ -73,66 +127,80 @@ async def load_context_from_redis(session_id: str) -> list[dict] | None:
 @router.websocket("/ws/chat")
 async def chat_websocket(websocket: WebSocket, token: str):
     """教学对话 WebSocket"""
-    # ── 认证 ──
-    user_id = decode_access_token(token)
-    if not user_id:
-        await websocket.close(code=4001, reason="无效令牌")
+    # ── 认证与用户状态校验 ──
+    try:
+        async with async_session_factory() as db:
+            user_id = await resolve_active_user_id(token, db)
+            if not user_id:
+                await websocket.close(code=4001, reason="无效、过期或已停用的令牌")
+                return
+            user = await db.get(User, user_id)
+            learner_profile = normalize_profile(user.learner_profile) if user else dict(DEFAULT_LEARNER_PROFILE)
+    except Exception:
+        await websocket.close(code=1011, reason="认证服务不可用")
         return
 
     await websocket.accept()
-
-    # ── 从数据库加载用户的学习风格配置 ──
-    learner_profile = None
-    try:
-        from app.models.user import User
-        from app.services.learner_profile import normalize as normalize_profile
-
-        async with async_session_factory() as db:
-            user_result = await db.execute(select(User).where(User.id == user_id))
-            user = user_result.scalar_one_or_none()
-            if user:
-                learner_profile = normalize_profile(user.learner_profile)
-    except Exception:
-        pass
-    if learner_profile is None:
-        from app.services.learner_profile import DEFAULT_LEARNER_PROFILE
-
-        learner_profile = dict(DEFAULT_LEARNER_PROFILE)
 
     session_id = ""
     current_node_id = ""
     chat_history: list[dict] = []
     llm = LLMAdapter()
+    profile_override_loaded = False
 
     try:
         while True:
             raw = await websocket.receive_text()
-            data = json.loads(raw)
+            data, payload_error = decode_ws_payload(raw)
+            if payload_error:
+                await websocket.send_json(payload_error)
+                continue
             msg_type = data.get("type", "message")
 
             # ── 语音消息：ASR 识别后转为文字消息处理 ──
             if msg_type == "audio":
                 audio_b64 = data.get("audio_data", "")
-                if audio_b64:
-                    audio_bytes = base64.b64decode(audio_b64)
+                audio_bytes, audio_error = decode_audio_payload(audio_b64)
+                if audio_error:
+                    await websocket.send_json(audio_error)
+                    continue
+                if audio_bytes:
                     transcribed = await transcribe_audio(audio_bytes)
                     if transcribed:
                         # 将识别结果转为文字消息，走下面的文字处理流程
                         data["type"] = "message"
                         data["content"] = transcribed
                         data["_from_voice"] = True
+                        msg_type = "message"
                     else:
                         await websocket.send_json({"type": "error", "code": "asr_failed", "message": "语音识别失败，请重试"})
                         continue
-                else:
-                    await websocket.send_json({"type": "error", "code": "no_audio", "message": "未收到音频数据"})
-                    continue
 
             # ── 消息：开始或继续对话 ──
             if msg_type == "message":
                 content = data.get("content", "")
                 node_id = data.get("node_id", current_node_id)
                 path_id = data.get("path_id", "")
+
+                if not isinstance(content, str):
+                    await websocket.send_json(
+                        {
+                            "type": "error",
+                            "code": "invalid_payload",
+                            "message": "消息内容必须是文本",
+                        }
+                    )
+                    continue
+
+                if not path_id:
+                    await websocket.send_json(
+                        {
+                            "type": "error",
+                            "code": "path_required",
+                            "message": "缺少学习路径，无法开始教学会话",
+                        }
+                    )
+                    continue
 
                 if not content.strip():
                     await websocket.send_json(
@@ -144,21 +212,54 @@ async def chat_websocket(websocket: WebSocket, token: str):
                     )
                     continue
 
+                async with async_session_factory() as auth_db:
+                    try:
+                        await require_owned_node(node_id, user_id, auth_db, path_id)
+                    except Exception:
+                        await websocket.send_json(
+                            {
+                                "type": "error",
+                                "code": "node_forbidden",
+                                "message": "节点不存在或无权访问",
+                            }
+                        )
+                        continue
+
                 # 首次消息 → 创建会话 / 断线重连 → 恢复上下文
                 if not session_id:
                     session_id = data.get("session_id", "") or ""
                     current_node_id = node_id
 
-                    # 尝试从 Redis 恢复上下文（快速路径）
-                    chat_history = await load_context_from_redis(session_id)
+                    if session_id and not await validate_chat_session(session_id, user_id, path_id, node_id):
+                        await websocket.send_json(
+                            {
+                                "type": "error",
+                                "code": "invalid_session",
+                                "message": "会话不存在或不属于当前学习路径/节点",
+                            }
+                        )
+                        session_id = ""
+                        continue
+
+                    # 会话归属校验通过后，才允许从 Redis 快速恢复上下文。
+                    chat_history = await load_context_from_redis(user_id, session_id) if session_id else None
 
                     if chat_history is None and session_id:
                         # Redis 没有 → 从 DB 恢复（慢路径）
-                        loaded = await load_chat_history(session_id)
-                        if loaded is not None:
-                            chat_history = loaded
+                        loaded = await load_chat_history(session_id, user_id, path_id, node_id)
+                        if loaded is None:
+                            await websocket.send_json(
+                                {
+                                    "type": "error",
+                                    "code": "invalid_session",
+                                    "message": "会话不存在或不属于当前学习路径/节点",
+                                }
+                            )
+                            session_id = ""
+                            continue
+                        chat_history = loaded
 
-                    if not session_id or chat_history is None or len(chat_history) == 0:
+                    if not session_id or chat_history is None:
                         # 全新会话
                         async with async_session_factory() as db:
                             sess = ChatSession(
@@ -182,7 +283,7 @@ async def chat_websocket(websocket: WebSocket, token: str):
                 current_node_id = node_id
 
                 # ── 加载路径级 Learner Profile 覆盖（仅首次） ──
-                if path_id and not getattr(_profile_override_loaded, '_loaded'):
+                if path_id and not profile_override_loaded:
                     try:
                         from app.models.path import LearningPath
                         async with async_session_factory() as pdb:
@@ -196,7 +297,7 @@ async def chat_websocket(websocket: WebSocket, token: str):
                                     if isinstance(fields, dict):
                                         merged[group] = {**merged.get(group, {}), **fields}
                                 learner_profile = merged
-                        _profile_override_loaded._loaded = True
+                        profile_override_loaded = True
                     except Exception:
                         pass
 
@@ -244,7 +345,7 @@ async def chat_websocket(websocket: WebSocket, token: str):
                     await websocket.send_json({
                         "type": "error",
                         "code": "llm_error",
-                        "message": f"AI 回答失败: {str(e)[:100]}。请检查 API 配置或稍后重试。",
+                        "message": "AI 回答失败，请检查 API 配置或稍后重试。",
                     })
                     continue
 
@@ -283,7 +384,7 @@ async def chat_websocket(websocket: WebSocket, token: str):
                 chat_history.append({"role": "assistant", "content": answer})
 
                 # 缓存到 Redis（断线重连用）
-                await cache_context_to_redis(session_id, chat_history)
+                await cache_context_to_redis(user_id, session_id, chat_history)
 
                 # 更新会话消息计数
                 async with async_session_factory() as db:
@@ -295,6 +396,28 @@ async def chat_websocket(websocket: WebSocket, token: str):
             # ── 延伸请求 ──
             elif msg_type == "extend":
                 node_id = data.get("node_id", current_node_id)
+                path_id = data.get("path_id", "")
+                if not path_id:
+                    await websocket.send_json(
+                        {
+                            "type": "error",
+                            "code": "path_required",
+                            "message": "缺少学习路径，无法生成延伸内容",
+                        }
+                    )
+                    continue
+                async with async_session_factory() as auth_db:
+                    try:
+                        await require_owned_node(node_id, user_id, auth_db, path_id)
+                    except Exception:
+                        await websocket.send_json(
+                            {
+                                "type": "error",
+                                "code": "node_forbidden",
+                                "message": "节点不存在或无权访问",
+                            }
+                        )
+                        continue
                 kg = KnowledgeGraphService()
                 node = await kg.get_node(node_id)
                 if not node:
@@ -317,7 +440,13 @@ async def chat_websocket(websocket: WebSocket, token: str):
                     suggestion = await llm.suggest_extension(node, all_related, learner_profile)
                 except Exception as e:
                     print(f"  ❌ LLM 延伸请求失败: {e}")
-                    await websocket.send_json({"type": "error", "code": "llm_error", "message": f"延伸请求失败: {str(e)[:80]}"})
+                    await websocket.send_json(
+                        {
+                            "type": "error",
+                            "code": "llm_error",
+                            "message": "延伸请求失败，请稍后重试。",
+                        }
+                    )
                     continue
 
                 await websocket.send_json(
@@ -352,9 +481,6 @@ async def chat_websocket(websocket: WebSocket, token: str):
                 if sess:
                     sess.ended_at = datetime.now(UTC)
                     await db.commit()
-
-
-
 
 
 
