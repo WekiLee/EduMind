@@ -146,6 +146,7 @@ npm run dev -- --host 0.0.0.0
 
 ```bash
 # 启动所有服务（PostgreSQL + Neo4j + Redis + 后端 + 前端）
+export POSTGRES_PASSWORD="edumind_dev"
 docker compose --profile dev up -d
 
 # 查看日志
@@ -164,6 +165,7 @@ export NEO4J_PASSWORD="<强随机密码>"
 export JWT_SECRET=$(openssl rand -hex 32)
 
 # 如使用外部 PostgreSQL，可额外覆盖 DATABASE_URL
+python scripts/validate_compose_config.py
 
 # 构建镜像并启动（多阶段构建，无源码挂载）
 docker compose --profile prod build

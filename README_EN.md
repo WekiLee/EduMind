@@ -107,6 +107,7 @@ Open `http://localhost:5173` in your browser.
 #### Development Mode
 
 ```bash
+export POSTGRES_PASSWORD="edumind_dev"
 docker compose --profile dev up -d
 docker compose logs -f backend
 ```
@@ -118,6 +119,7 @@ export POSTGRES_PASSWORD="<strong-random-password>"
 export NEO4J_PASSWORD="<strong-random-password>"
 export JWT_SECRET=$(openssl rand -hex 32)
 # Set DATABASE_URL only when using an external PostgreSQL instance.
+python scripts/validate_compose_config.py
 docker compose --profile prod build
 docker compose --profile prod up -d
 ```

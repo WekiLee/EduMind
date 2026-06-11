@@ -12,3 +12,13 @@ def test_prod_compose_enables_production_secret_guards():
     assert "DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://edumind:${POSTGRES_PASSWORD:" in content
     assert "NEO4J_PASSWORD: ${NEO4J_PASSWORD:?production NEO4J_PASSWORD is required}" in content
     assert "JWT_SECRET: ${JWT_SECRET:?production JWT_SECRET is required}" in content
+
+
+def test_compose_rejects_default_postgres_password():
+    """Compose 不能为 PostgreSQL 继续保留开发默认密码。"""
+    compose = Path(__file__).resolve().parents[3] / "docker-compose.yml"
+    content = compose.read_text(encoding="utf-8")
+
+    assert "POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}" in content
+    assert "POSTGRES_PASSWORD:-edumind_dev" not in content
+    assert "postgresql+asyncpg://edumind:edumind_dev@postgres" not in content

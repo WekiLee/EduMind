@@ -1,4 +1,4 @@
-.PHONY: install-backend install-frontend install dev-backend dev-frontend dev test lint clean
+.PHONY: install-backend install-frontend install dev-backend dev-frontend dev test lint validate-compose clean
 
 # ── Install ──
 
@@ -25,6 +25,9 @@ dev:
 
 lint:
 	cd backend && ruff check . && mypy app --ignore-missing-imports
+
+validate-compose:
+	python scripts/validate_compose_config.py
 
 format:
 	cd backend && ruff format .

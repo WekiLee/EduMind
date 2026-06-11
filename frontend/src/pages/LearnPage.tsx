@@ -1,14 +1,15 @@
-import { useEffect, useState, useRef } from 'react';
+import { lazy, Suspense, useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { api } from '../services/api';
 import { connectChatWS, sendChatMessage, sendExtensionRequest, sendAudioMessage, closeChatWS } from '../services/api';
 import { isVoiceSupported, startRecording, stopRecording, cancelRecording, isVoiceActivationActive, startVoiceActivation, stopVoiceActivation } from '../services/voice';
 import { useLearningStore } from '../stores/useLearningStore';
 import { ChevronRight, MessageSquare, Brain, Send, Maximize2, BarChart3 } from 'lucide-react';
-import ReactMarkdown from 'react-markdown';
-import GraphView from '../components/KnowledgeGraph/GraphView';
-import KnowledgeCard from '../components/KnowledgeCard';
 import { showToast } from '../components/common';
+
+const ReactMarkdown = lazy(() => import('react-markdown'));
+const GraphView = lazy(() => import('../components/KnowledgeGraph/GraphView'));
+const KnowledgeCard = lazy(() => import('../components/KnowledgeCard'));
 
 interface QuizQuestion {
   id: string;
@@ -299,7 +300,9 @@ export default function LearnPage() {
         {/* 知识卡片 */}
         {currentNode && quizQuestions.length === 0 && (
           <div className="p-4 border-b border-gray-200">
-            <KnowledgeCard node={currentNode} />
+            <Suspense fallback={<div className="text-sm text-gray-400 py-4">正在加载知识卡片...</div>}>
+              <KnowledgeCard node={currentNode} />
+            </Suspense>
             <div className="flex items-center gap-2 mt-3">
               <button onClick={handleComplete} className="bg-green-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-green-700">
                 ✅ 完成并测验
@@ -441,7 +444,9 @@ export default function LearnPage() {
                     <div className="whitespace-pre-wrap">{msg.content}</div>
                   ) : (
                     <div className="markdown-content text-sm leading-relaxed">
-                      <ReactMarkdown>{msg.content}</ReactMarkdown>
+                      <Suspense fallback={<div className="text-sm text-gray-400">正在加载内容...</div>}>
+                        <ReactMarkdown>{msg.content}</ReactMarkdown>
+                      </Suspense>
                     </div>
                   )}
                 </div>
@@ -522,17 +527,18 @@ export default function LearnPage() {
             </div>
           </div>
           <div className="flex-1 p-2">
-            <GraphView
-              nodes={graphData.nodes || []}
-              edges={graphData.edges || []}
-              currentNodeId={currentNode?.id}
-              onNodeClick={(nid) => loadNode(nid)}
-            />
+            <Suspense fallback={<div className="flex h-full items-center justify-center text-sm text-gray-400">正在加载知识图谱...</div>}>
+              <GraphView
+                nodes={graphData.nodes || []}
+                edges={graphData.edges || []}
+                currentNodeId={currentNode?.id}
+                onNodeClick={(nid) => loadNode(nid)}
+              />
+            </Suspense>
           </div>
         </div>
       )}
     </div>
   );
 }
-
 

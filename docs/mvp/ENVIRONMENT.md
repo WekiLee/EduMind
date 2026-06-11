@@ -40,7 +40,7 @@ services:
     environment:
       POSTGRES_DB: edumind
       POSTGRES_USER: edumind
-      POSTGRES_PASSWORD: edumind_dev
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
     ports:
       - "5432:5432"
     volumes:
@@ -100,7 +100,7 @@ services:
       - "8000:8000"
     environment:
       ENVIRONMENT: development
-      DATABASE_URL: postgresql+asyncpg://edumind:edumind_dev@postgres:5432/edumind
+      DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://edumind:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@postgres:5432/edumind}
       NEO4J_URI: bolt://neo4j:7687
       NEO4J_USER: neo4j
       NEO4J_PASSWORD: edumind_dev
@@ -211,12 +211,14 @@ CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
 
 ```bash
 # 一键启动全栈（首次会拉取镜像，较慢）
+export POSTGRES_PASSWORD="edumind_dev"
 docker compose up -d
 
 # 查看日志
 docker compose logs -f backend
 
 # 仅启动数据库（前端+后端本地运行）
+export POSTGRES_PASSWORD="edumind_dev"
 docker compose up -d postgres neo4j redis ollama
 
 # 本地运行后端（需要 Python 3.12+）
@@ -283,6 +285,7 @@ export POSTGRES_PASSWORD="<强随机密码>"
 export NEO4J_PASSWORD="<强随机密码>"
 export JWT_SECRET="$(openssl rand -hex 32)"
 # 如使用外部 PostgreSQL，可额外覆盖 DATABASE_URL。
+python scripts/validate_compose_config.py
 docker compose --profile prod up -d
 ```
 
