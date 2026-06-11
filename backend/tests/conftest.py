@@ -4,7 +4,6 @@ import os
 from urllib.parse import urlparse
 
 import pytest_asyncio
-from httpx import ASGITransport, AsyncClient
 
 # 必须在导入 app.core.database 前设置，避免全局 engine 绑定开发库。
 TEST_DATABASE_URL = os.getenv(
@@ -17,9 +16,6 @@ if not test_db_name.endswith("_test"):
     raise RuntimeError("测试数据库名称必须以 _test 结尾，已拒绝执行破坏性测试清理")
 os.environ["DATABASE_URL"] = TEST_DATABASE_URL
 
-from app.core.database import Base, async_session_factory, engine, init_pgvector  # noqa: E402
-from app.main import app  # noqa: E402
-
 
 @pytest_asyncio.fixture(scope="session")
 def event_loop():
@@ -30,9 +26,11 @@ def event_loop():
     loop.close()
 
 
-@pytest_asyncio.fixture(autouse=True)
+@pytest_asyncio.fixture
 async def setup_database():
-    """每个测试前建表，测试后删表"""
+    """为集成测试准备数据库；单元测试未请求该 fixture 时不会连接真实数据库。"""
+    from app.core.database import Base, engine, init_pgvector
+
     await init_pgvector()
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
@@ -43,22 +41,28 @@ async def setup_database():
 
 
 @pytest_asyncio.fixture
-async def client():
+async def client(setup_database):
     """FastAPI 测试客户端"""
+    from httpx import ASGITransport, AsyncClient
+
+    from app.main import app
+
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
         yield ac
 
 
 @pytest_asyncio.fixture
-async def db_session():
+async def db_session(setup_database):
     """数据库会话"""
+    from app.core.database import async_session_factory
+
     async with async_session_factory() as session:
         yield session
 
 
 @pytest_asyncio.fixture
-async def registered_user(client: AsyncClient):
+async def registered_user(client):
     """注册一个测试用户并返回登录 token 和用户信息"""
     resp = await client.post("/api/v1/auth/register", json={
         "name": "测试用户",

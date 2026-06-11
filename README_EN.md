@@ -114,9 +114,10 @@ docker compose logs -f backend
 #### Production Mode
 
 ```bash
-export DATABASE_URL="postgresql+asyncpg://edumind:<strong-password>@postgres:5432/edumind"
+export POSTGRES_PASSWORD="<strong-random-password>"
 export NEO4J_PASSWORD="<strong-random-password>"
 export JWT_SECRET=$(openssl rand -hex 32)
+# Set DATABASE_URL only when using an external PostgreSQL instance.
 docker compose --profile prod build
 docker compose --profile prod up -d
 ```

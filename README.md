@@ -158,10 +158,12 @@ docker compose down
 #### 生产模式
 
 ```bash
-# 生产环境需先通过环境变量传入真实连接串和密钥
-export DATABASE_URL="postgresql+asyncpg://edumind:<强密码>@postgres:5432/edumind"
+# 生产环境需先通过环境变量传入真实数据库密码和密钥
+export POSTGRES_PASSWORD="<强随机密码>"
 export NEO4J_PASSWORD="<强随机密码>"
 export JWT_SECRET=$(openssl rand -hex 32)
+
+# 如使用外部 PostgreSQL，可额外覆盖 DATABASE_URL
 
 # 构建镜像并启动（多阶段构建，无源码挂载）
 docker compose --profile prod build

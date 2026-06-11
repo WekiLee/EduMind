@@ -279,9 +279,10 @@ DATA_DIR=./data
 
 ```bash
 export ENVIRONMENT=production
-export DATABASE_URL="postgresql+asyncpg://edumind:<强密码>@postgres:5432/edumind"
+export POSTGRES_PASSWORD="<强随机密码>"
 export NEO4J_PASSWORD="<强随机密码>"
 export JWT_SECRET="$(openssl rand -hex 32)"
+# 如使用外部 PostgreSQL，可额外覆盖 DATABASE_URL。
 docker compose --profile prod up -d
 ```
 

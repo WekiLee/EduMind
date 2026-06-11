@@ -33,6 +33,7 @@ frontend/.env.*
 
 # ── Data & Temp ──
 data/
+recordlogs/
 *.db
 *.sqlite
 tmp/

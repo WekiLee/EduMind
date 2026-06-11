@@ -9,7 +9,6 @@ def test_prod_compose_enables_production_secret_guards():
     content = compose.read_text(encoding="utf-8")
 
     assert "ENVIRONMENT: production" in content
-    assert "DATABASE_URL: ${DATABASE_URL:?production DATABASE_URL is required}" in content
+    assert "DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://edumind:${POSTGRES_PASSWORD:" in content
     assert "NEO4J_PASSWORD: ${NEO4J_PASSWORD:?production NEO4J_PASSWORD is required}" in content
     assert "JWT_SECRET: ${JWT_SECRET:?production JWT_SECRET is required}" in content
-

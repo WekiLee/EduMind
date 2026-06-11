@@ -37,7 +37,7 @@
 | **跨平台**（Web/桌面/嵌入） | ✅ | ⚠️ 仅Web | ❌ Web only | ❌ | ❌ | ⚠️ 仅移动端 | ❌ |
 | **模型自由配置**（Ollama/OpenAI） | ✅ | ❌ | ❌ 仅Gemini | ❌ | ❌ | ❌ | ❌ |
 | **MCP 协议支持** | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| **开源许可证** | MIT | MIT | MIT | MIT | — | — | MIT |
+| **开源许可证** | AGPL v3 | AGPL v3 | AGPL v3 | AGPL v3 | — | — | AGPL v3 |
 
 ---
 
