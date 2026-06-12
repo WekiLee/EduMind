@@ -212,14 +212,14 @@ CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
 ```bash
 # 一键启动全栈（首次会拉取镜像，较慢）
 export POSTGRES_PASSWORD="edumind_dev"
-docker compose up -d
+docker compose --profile dev up -d
 
 # 查看日志
 docker compose logs -f backend
 
 # 仅启动数据库（前端+后端本地运行）
 export POSTGRES_PASSWORD="edumind_dev"
-docker compose up -d postgres neo4j redis ollama
+docker compose up -d postgres neo4j redis
 
 # 本地运行后端（需要 Python 3.12+）
 cd backend
@@ -298,15 +298,14 @@ docker compose --profile prod up -d
 git clone https://github.com/edumind/edumind.git
 cd edumind
 
-# 2. 复制配置文件
-cp backend/.env.example backend/.env
+# 2. 准备 Compose 必填变量
+export POSTGRES_PASSWORD="edumind_dev"
 
 # 3. 启动全部服务
-docker compose up -d
+docker compose --profile dev up -d
 
-# 4. 等待 Ollama 拉取模型（首次较慢）
-docker compose logs -f ollama
-# 看到 "done" 即模型就绪
+# 4. 查看后端日志
+docker compose logs -f backend
 
 # 5. 运行数据库迁移
 docker compose exec backend alembic upgrade head

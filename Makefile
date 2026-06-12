@@ -1,4 +1,4 @@
-.PHONY: install-backend install-frontend install dev-backend dev-frontend dev test lint validate-compose clean
+.PHONY: install-backend install-frontend install dev-backend dev-frontend dev test lint validate-compose clean docker-up docker-up-prod docker-down docker-logs
 
 # ── Install ──
 
@@ -41,7 +41,12 @@ test-unit:
 # ── Docker ──
 
 docker-up:
-	docker compose up -d
+	@echo "请先设置 POSTGRES_PASSWORD，例如：export POSTGRES_PASSWORD=edumind_dev"
+	docker compose --profile dev up -d
+
+docker-up-prod:
+	python scripts/validate_compose_config.py
+	docker compose --profile prod up -d
 
 docker-down:
 	docker compose down

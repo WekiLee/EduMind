@@ -52,8 +52,29 @@ echo ✅ 前端依赖已安装
 REM 5. 配置环境变量
 echo.
 echo [5/5] 配置环境变量...
+if not exist .env (
+    echo POSTGRES_PASSWORD=edumind_dev>.env
+    echo ✅ 根目录 .env 已创建，供 Docker Compose 使用
+) else (
+    findstr /B "POSTGRES_PASSWORD=" .env >nul 2>&1
+    if errorlevel 1 echo POSTGRES_PASSWORD=edumind_dev>>.env
+    echo ✅ 根目录 .env 已存在
+)
 if not exist backend\.env (
-    copy backend\.env.example backend\.env
+    (
+        echo DATABASE_URL=postgresql+asyncpg://edumind:edumind_dev@localhost:5432/edumind
+        echo NEO4J_URI=bolt://localhost:7687
+        echo NEO4J_USER=neo4j
+        echo NEO4J_PASSWORD=edumind_dev
+        echo REDIS_URL=redis://localhost:6379/0
+        echo LLM_PROVIDER=openai-compatible
+        echo LLM_MODEL=deepseek-v4-flash
+        echo OPENAI_API_KEY=sk-your-deepseek-api-key
+        echo OPENAI_BASE_URL=https://api.deepseek.com/v1
+        echo JWT_SECRET=edumind-dev-secret
+        echo CORS_ORIGINS=http://localhost:5173
+        echo DATA_DIR=./data
+    ) > backend\.env
     echo ✅ .env 已创建，请按需修改配置
 ) else (
     echo ✅ .env 已存在
@@ -67,7 +88,8 @@ echo.
 echo   启动方式：
 echo.
 echo   1. 启动数据库（需要 Docker）:
-echo      docker compose up -d postgres neo4j redis ollama
+echo      set POSTGRES_PASSWORD=edumind_dev
+echo      docker compose up -d postgres neo4j redis
 echo.
 echo   2. 启动后端（新终端）:
 echo      cd backend

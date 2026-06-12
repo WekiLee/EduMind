@@ -116,8 +116,9 @@ bash scripts/deploy.sh
 #    - 配置镜像加速（见上文第二节）
 #    - 或逐个 docker pull
 
-# 3. 启动
-docker compose up -d
+# 3. 手动启动时需显式提供开发数据库密码并启用 dev profile
+export POSTGRES_PASSWORD="edumind_dev"
+docker compose --profile dev up -d
 ```
 
 ---
@@ -135,7 +136,7 @@ docker compose up -d
 ### Q: Neo4j 浏览器界面无法打开
 ```bash
 # Neo4j 浏览器在 http://localhost:7474
-# 默认账号密码：neo4j / edumind_dev
+# Neo4j 密码见项目根目录 .env 的 NEO4J_PASSWORD
 docker compose logs neo4j  # 检查日志
 ```
 
@@ -147,5 +148,6 @@ docker compose logs -f backend
 ### Q: 如何重置所有数据？
 ```bash
 docker compose down -v   # 删除所有数据卷
-docker compose up -d     # 重新启动
+export POSTGRES_PASSWORD="edumind_dev"
+docker compose --profile dev up -d     # 重新启动
 ```

@@ -10,6 +10,39 @@ echo "========================================"
 echo "  EduMind 原生部署（无 Docker 镜像）"
 echo "========================================"
 
+generate_secret() {
+  if command -v openssl &>/dev/null; then
+    openssl rand -hex 24
+  else
+    date +%s%N | sha256sum | head -c 48
+  fi
+}
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+BACKEND_DIR="${SCRIPT_DIR}/../backend"
+FRONTEND_DIR="${SCRIPT_DIR}/../frontend"
+BACKEND_ENV="${BACKEND_DIR}/.env"
+
+if [ -f "$BACKEND_ENV" ]; then
+  set -a
+  . "$BACKEND_ENV"
+  set +a
+  if [ -z "${POSTGRES_PASSWORD:-}" ] && [ -n "${DATABASE_URL:-}" ]; then
+    POSTGRES_PASSWORD="$(printf '%s' "$DATABASE_URL" | sed -n 's#.*://edumind:\([^@]*\)@.*#\1#p')"
+  fi
+fi
+
+POSTGRES_PASSWORD="${POSTGRES_PASSWORD:-$(generate_secret)}"
+NEO4J_PASSWORD="${NEO4J_PASSWORD:-$(generate_secret)}"
+JWT_SECRET="${JWT_SECRET:-$(generate_secret)}"
+
+case "${POSTGRES_PASSWORD}${NEO4J_PASSWORD}" in
+  *"'"*)
+    echo "❌ POSTGRES_PASSWORD 和 NEO4J_PASSWORD 不能包含单引号"
+    exit 1
+    ;;
+esac
+
 # ── 1. 安装 PostgreSQL ──
 echo ""
 echo "[1/5] 安装 PostgreSQL..."
@@ -17,8 +50,11 @@ if ! command -v psql &>/dev/null; then
   sudo apt-get install -y postgresql postgresql-contrib
 fi
 sudo systemctl start postgresql 2>/dev/null || true
-sudo -u postgres psql -tc "SELECT 1 FROM pg_roles WHERE rolname='edumind'" | grep -q 1 || \
-  sudo -u postgres psql -c "CREATE USER edumind WITH PASSWORD 'edumind_dev';"
+if sudo -u postgres psql -tc "SELECT 1 FROM pg_roles WHERE rolname='edumind'" | grep -q 1; then
+  sudo -u postgres psql -c "ALTER USER edumind WITH PASSWORD '${POSTGRES_PASSWORD}';"
+else
+  sudo -u postgres psql -c "CREATE USER edumind WITH PASSWORD '${POSTGRES_PASSWORD}';"
+fi
 sudo -u postgres psql -tc "SELECT 1 FROM pg_database WHERE datname='edumind'" | grep -q 1 || \
   sudo -u postgres psql -c "CREATE DATABASE edumind OWNER edumind;"
 echo "  ✅ PostgreSQL 就绪"
@@ -49,14 +85,14 @@ if ! command -v neo4j &>/dev/null && [ ! -f /usr/bin/neo4j ]; then
 
   # 配置密码
   export NEO4J_HOME=/opt/neo4j
-  /opt/neo4j/bin/neo4j-admin dbms set-initial-password edumind_dev
+  /opt/neo4j/bin/neo4j-admin dbms set-initial-password "${NEO4J_PASSWORD}"
 fi
 
 # 启动 Neo4j
 if [ -f /opt/neo4j/bin/neo4j ]; then
   /opt/neo4j/bin/neo4j start 2>/dev/null || true
 fi
-echo "  ✅ Neo4j 就绪（http://localhost:7474, neo4j/edumind_dev）"
+echo "  ✅ Neo4j 就绪（http://localhost:7474，账号 neo4j，密码见 backend/.env）"
 
 # ── 安装文档解析系统依赖（unstructured 需要）──
 echo ""
@@ -67,7 +103,7 @@ echo "  ✅ 文档解析依赖就绪"
 # ── 4. 启动后端 ──
 echo ""
 echo "[4/5] 启动后端..."
-cd "$(dirname "$0")/../backend"
+cd "$BACKEND_DIR"
 
 # 创建虚拟环境（如果不存在）
 if [ ! -d venv ]; then
@@ -78,17 +114,17 @@ pip install -q -r requirements.txt
 
 # 确保 .env 文件存在
 if [ ! -f .env ]; then
-  cat > .env << 'EOF'
-DATABASE_URL=postgresql+asyncpg://edumind:edumind_dev@localhost:5432/edumind
+  cat > .env << EOF
+DATABASE_URL=postgresql+asyncpg://edumind:${POSTGRES_PASSWORD}@localhost:5432/edumind
 NEO4J_URI=bolt://localhost:7687
 NEO4J_USER=neo4j
-NEO4J_PASSWORD=edumind_dev
+NEO4J_PASSWORD=${NEO4J_PASSWORD}
 REDIS_URL=redis://localhost:6379/0
 LLM_PROVIDER=openai-compatible
 LLM_MODEL=deepseek-v4-flash
 OPENAI_API_KEY=sk-your-deepseek-api-key
 OPENAI_BASE_URL=https://api.deepseek.com/v1
-JWT_SECRET=edumind-native-$(date +%s | md5sum | head -c 8)
+JWT_SECRET=${JWT_SECRET}
 CORS_ORIGINS=http://localhost:5173
 DATA_DIR=./data
 EOF
@@ -104,7 +140,7 @@ echo "     API:  http://localhost:8000"
 # ── 5. 启动前端 ──
 echo ""
 echo "[5/5] 启动前端..."
-cd "$(dirname "$0")/../frontend"
+cd "$FRONTEND_DIR"
 
 if [ ! -d node_modules ]; then
   npm install

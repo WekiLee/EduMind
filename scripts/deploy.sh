@@ -102,6 +102,22 @@ fi
 cd "$PROJECT_DIR"
 echo "  ✅ 项目目录: $(pwd)"
 
+generate_secret() {
+  if command -v openssl &>/dev/null; then
+    openssl rand -hex 24
+  else
+    date +%s%N | sha256sum | head -c 48
+  fi
+}
+
+ensure_root_env_var() {
+  key="$1"
+  value="$2"
+  if ! grep -q "^${key}=" .env 2>/dev/null; then
+    echo "${key}=${value}" >> .env
+  fi
+}
+
 # ── 4. 创建数据目录 ──
 echo ""
 echo "[4/7] 创建数据目录..."
@@ -112,16 +128,32 @@ echo "  ✅ data/ 已创建"
 echo ""
 echo "[5/7] 配置环境变量..."
 
+if [ ! -f .env ]; then
+  cat > .env << ENVFILE
+# ── Docker Compose 变量 ──
+ENVFILE
+  chmod 600 .env 2>/dev/null || true
+fi
+
+ensure_root_env_var "POSTGRES_PASSWORD" "$(generate_secret)"
+ensure_root_env_var "NEO4J_PASSWORD" "$(generate_secret)"
+ensure_root_env_var "JWT_SECRET" "$(generate_secret)"
+
+set -a
+. ./.env
+set +a
+echo "  ✅ 根目录 .env 已准备（供 Docker Compose 变量展开使用）"
+
 if [ ! -f backend/.env ]; then
   # 尝试获取有效 API Key
   read -p "  请输入 DeepSeek API Key（回车跳过，稍后手动编辑）: " api_key
 
   cat > backend/.env << ENVFILE
 # ── 数据库 ──
-DATABASE_URL=postgresql+asyncpg://edumind:edumind_dev@postgres:5432/edumind
+DATABASE_URL=postgresql+asyncpg://edumind:${POSTGRES_PASSWORD}@postgres:5432/edumind
 NEO4J_URI=bolt://neo4j:7687
 NEO4J_USER=neo4j
-NEO4J_PASSWORD=edumind_dev
+NEO4J_PASSWORD=${NEO4J_PASSWORD}
 REDIS_URL=redis://redis:6379/0
 
 # ── LLM（默认 DeepSeek 公开 API）──
@@ -136,7 +168,7 @@ OPENAI_BASE_URL=https://api.deepseek.com/v1
 # OLLAMA_BASE_URL=http://ollama:11434
 
 # ── 安全 ──
-JWT_SECRET=edumind-$(date +%s | md5sum | head -c 16)
+JWT_SECRET=${JWT_SECRET}
 JWT_EXPIRATION_HOURS=72
 
 CORS_ORIGINS=http://localhost:5173,http://localhost:3000
@@ -157,12 +189,12 @@ echo "[6/7] 启动 Docker 服务..."
 
 # 先拉取镜像（允许失败，国内网络可能超时）
 echo "  拉取镜像（如果网络慢可跳过：Ctrl+C 后手动 docker compose pull）..."
-docker compose pull 2>/dev/null || {
+docker compose --profile dev pull 2>/dev/null || {
   echo "  ⚠️  镜像拉取超时，将尝试直接启动（首次会自动拉取）"
 }
 
 # 启动（后台）
-docker compose up -d 2>/dev/null || {
+docker compose --profile dev up -d 2>/dev/null || {
   echo "  ❌ Docker 启动失败"
   echo "  请检查："
   echo "    1. Docker 是否已启动：sudo systemctl status docker"
@@ -210,13 +242,13 @@ echo ""
 echo "  访问地址:"
 echo "   前端:     http://localhost:5173"
 echo "   后端 API: http://localhost:8000"
-echo "   Neo4j:   http://localhost:7474 (neo4j/edumind_dev)"
+echo "   Neo4j:   http://localhost:7474（账号 neo4j，密码见根目录 .env 的 NEO4J_PASSWORD）"
 echo ""
 echo "  常用命令:"
 echo "   查看日志:  docker compose logs -f"
 echo "   查看后端:  docker compose logs -f backend"
 echo "   停止服务:  docker compose down"
-echo "   重启服务:  docker compose restart"
+echo "   重启服务:  docker compose --profile dev restart"
 echo ""
 echo "  📌 默认使用 DeepSeek API"
 echo "     - 确保 backend/.env 中 OPENAI_API_KEY 已正确填写"
