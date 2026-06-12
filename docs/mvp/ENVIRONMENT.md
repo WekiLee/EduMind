@@ -292,6 +292,9 @@ export JWT_SECRET="$(openssl rand -hex 32)"
 # 生产默认不执行启动期 DDL；如需兼容旧部署，可显式设置 AUTO_MIGRATE_ON_STARTUP=true。
 # 如使用外部 PostgreSQL，可额外覆盖 DATABASE_URL。
 python scripts/validate_compose_config.py
+docker compose --profile prod build
+docker compose up -d postgres neo4j redis
+docker compose --profile prod run --rm backend-prod alembic upgrade head
 docker compose --profile prod up -d
 ```
 

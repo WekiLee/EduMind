@@ -72,6 +72,16 @@ def test_backend_env_example_is_trackable():
     assert "!backend/.env.example" in gitignore
 
 
+def test_alembic_migration_chain_exists():
+    """生产默认关闭启动期 DDL 后，必须提供可执行的 Alembic 迁移链路。"""
+    assert (ROOT / "backend" / "alembic.ini").exists()
+    assert (ROOT / "backend" / "alembic" / "env.py").exists()
+    versions = list((ROOT / "backend" / "alembic" / "versions").glob("*.py"))
+    assert versions
+    database_doc = (ROOT / "docs" / "mvp" / "DATABASE.md").read_text(encoding="utf-8")
+    assert "当前代码尚未引入 Alembic" not in database_doc
+
+
 def test_mvp_environment_doc_uses_current_neo4j_contract():
     """MVP 环境文档不能继续展示旧的 Neo4j 硬编码密码。"""
     content = (ROOT / "docs" / "mvp" / "ENVIRONMENT.md").read_text(encoding="utf-8")
@@ -79,6 +89,25 @@ def test_mvp_environment_doc_uses_current_neo4j_contract():
     assert "NEO4J_AUTH: neo4j/${NEO4J_PASSWORD:-edumind_dev}" in content
     assert "NEO4J_AUTH: neo4j/edumind_dev" not in content
     assert "AUTO_MIGRATE_ON_STARTUP: ${AUTO_MIGRATE_ON_STARTUP:-true}" in content
+
+
+def test_websocket_contract_does_not_put_jwt_in_url():
+    """WebSocket 认证令牌不能继续通过 URL query 传递。"""
+    frontend_api = (ROOT / "frontend" / "src" / "services" / "api.ts").read_text(encoding="utf-8")
+    api_doc = (ROOT / "docs" / "mvp" / "API.md").read_text(encoding="utf-8")
+
+    assert "/ws/chat?token=" not in frontend_api
+    assert "ws://host/api/v1/ws/chat?token=JWT_TOKEN" not in api_doc
+    assert "type: 'auth'" in frontend_api
+    assert '"type": "auth"' in api_doc
+
+
+def test_testing_doc_uses_current_neo4j_contract():
+    """测试文档中的 Neo4j 示例也必须跟随当前密码变量契约。"""
+    content = (ROOT / "docs" / "mvp" / "TESTING.md").read_text(encoding="utf-8")
+
+    assert "NEO4J_AUTH: neo4j/${NEO4J_PASSWORD:-edumind_dev}" in content
+    assert "NEO4J_AUTH: neo4j/edumind_dev" not in content
 
 
 def test_windows_setup_script_uses_existing_compose_contract():

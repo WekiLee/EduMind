@@ -1,6 +1,6 @@
 # MVP 数据库设计
 
-> PostgreSQL + Neo4j 完整 Schema。当前仓库未包含 Alembic 目录，MVP 阶段通过 `Base.metadata.create_all` 建表，并由 `ensure_schema_compatibility()` 执行少量启动期兼容修复。
+> PostgreSQL + Neo4j 完整 Schema。生产环境通过 Alembic 执行受控迁移；开发/演示环境仍可通过 `AUTO_MIGRATE_ON_STARTUP=true` 保留 `Base.metadata.create_all` 快速启动体验。
 
 ---
 
@@ -254,10 +254,16 @@ MVP 阶段不维护 PG ↔ Neo4j 的外键约束（NoSQL 图数据库没有外�
 
 ## 四、迁移策略
 
-当前代码尚未引入 Alembic，启动时会执行以下兼容修复：
+当前仓库已引入 Alembic，生产部署需先执行：
+
+```bash
+docker compose --profile prod run --rm backend-prod alembic upgrade head
+```
+
+开发/演示环境若开启 `AUTO_MIGRATE_ON_STARTUP=true`，启动时仍会执行以下兼容修复：
 
 1. 将 `system_config.allow_self_register` 从 JSON/Text 转为 Boolean，并补齐默认值和非空约束。
 2. 为 `node_embeddings` 补齐 `path_id`、清理无路径或孤儿向量、删除旧 `uq_node_model` 约束、添加 `uq_path_node_model`。
 3. 在条件允许时为 `node_embeddings.path_id` 添加到 `learning_paths.id` 的外键级联。
 
-后续进入生产部署前建议正式引入 Alembic，把上述兼容 SQL 固化为可审计迁移脚本。Neo4j 没有关系型迁移工具，图结构变更继续通过 Service 层 Cypher 语句控制。
+后续 schema 变更必须新增 Alembic 版本脚本，避免生产环境依赖隐式 DDL。Neo4j 没有关系型迁移工具，图结构变更继续通过 Service 层 Cypher 语句控制。

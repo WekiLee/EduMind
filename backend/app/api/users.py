@@ -6,7 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.core.security import get_current_user_id
+from app.core.security import get_current_user_id, hash_password, validate_password_strength
 from app.models.user import User
 
 router = APIRouter(prefix="/users", tags=["用户"])
@@ -60,9 +60,8 @@ async def update_user(
         user.model_config = build_model_config_update(req.model_config, user.model_config)
     if req.domain_id is not None:
         user.domain_id = req.domain_id
-    if req.password:
-        from app.core.security import hash_password
-
+    if req.password is not None:
+        validate_password_strength(req.password)
         user.password_hash = hash_password(req.password)
         user.must_change_password = False  # 改密码后清除首次登录标记
 

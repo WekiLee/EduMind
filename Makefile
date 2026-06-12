@@ -46,6 +46,9 @@ docker-up:
 
 docker-up-prod:
 	python scripts/validate_compose_config.py
+	docker compose --profile prod build
+	docker compose up -d postgres neo4j redis
+	docker compose --profile prod run --rm backend-prod alembic upgrade head
 	docker compose --profile prod up -d
 
 docker-down:

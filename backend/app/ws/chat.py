@@ -1,5 +1,6 @@
 """WebSocket 教学对话 —— 实时文字聊天，支持断线重连上下文恢复"""
 
+import asyncio
 import base64
 import binascii
 import json
@@ -125,22 +126,71 @@ async def load_context_from_redis(user_id: str, session_id: str) -> list[dict] |
 
 
 @router.websocket("/ws/chat")
-async def chat_websocket(websocket: WebSocket, token: str):
+async def chat_websocket(websocket: WebSocket):
     """教学对话 WebSocket"""
+    await websocket.accept()
+
     # ── 认证与用户状态校验 ──
+    try:
+        auth_raw = await asyncio.wait_for(websocket.receive_text(), timeout=10)
+    except WebSocketDisconnect:
+        return
+    except TimeoutError:
+        await websocket.close(code=4001, reason="认证超时")
+        return
+
+    auth_data, auth_error = decode_ws_payload(auth_raw)
+    if auth_error or auth_data is None:
+        await websocket.send_json(
+            auth_error
+            or {
+                "type": "error",
+                "code": "invalid_payload",
+                "message": "消息内容必须是 JSON 对象",
+            }
+        )
+        await websocket.close(code=4001, reason="认证消息格式错误")
+        return
+
+    token = auth_data.get("token") if auth_data.get("type") == "auth" else None
+    if not isinstance(token, str) or not token:
+        await websocket.send_json(
+            {
+                "type": "error",
+                "code": "auth_required",
+                "message": "请先发送认证消息",
+            }
+        )
+        await websocket.close(code=4001, reason="缺少认证令牌")
+        return
+
     try:
         async with async_session_factory() as db:
             user_id = await resolve_active_user_id(token, db)
             if not user_id:
+                await websocket.send_json(
+                    {
+                        "type": "error",
+                        "code": "invalid_token",
+                        "message": "无效、过期或已停用的令牌",
+                    }
+                )
                 await websocket.close(code=4001, reason="无效、过期或已停用的令牌")
                 return
             user = await db.get(User, user_id)
             learner_profile = normalize_profile(user.learner_profile) if user else dict(DEFAULT_LEARNER_PROFILE)
     except Exception:
+        await websocket.send_json(
+            {
+                "type": "error",
+                "code": "auth_unavailable",
+                "message": "认证服务不可用",
+            }
+        )
         await websocket.close(code=1011, reason="认证服务不可用")
         return
 
-    await websocket.accept()
+    await websocket.send_json({"type": "connected"})
 
     session_id = ""
     current_node_id = ""
@@ -481,7 +531,3 @@ async def chat_websocket(websocket: WebSocket, token: str):
                 if sess:
                     sess.ended_at = datetime.now(UTC)
                     await db.commit()
-
-
-
-

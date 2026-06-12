@@ -163,13 +163,15 @@ docker compose down
 export POSTGRES_PASSWORD="<强随机密码>"
 export NEO4J_PASSWORD="<强随机密码>"
 export JWT_SECRET=$(openssl rand -hex 32)
-# 生产默认关闭启动期自动建表/兼容 DDL；请先完成受控迁移。
+# 生产默认关闭启动期自动建表/兼容 DDL；请先执行 Alembic 迁移。
 
 # 如使用外部 PostgreSQL，可额外覆盖 DATABASE_URL
 python scripts/validate_compose_config.py
 
-# 构建镜像并启动（多阶段构建，无源码挂载）
+# 构建镜像，启动数据服务，执行迁移，再启动应用
 docker compose --profile prod build
+docker compose up -d postgres neo4j redis
+docker compose --profile prod run --rm backend-prod alembic upgrade head
 docker compose --profile prod up -d
 ```
 

@@ -1,12 +1,12 @@
 """管理员 API —— 用户管理 / 系统配置 / 内容统计"""
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.core.security import get_current_user_id, hash_password
+from app.core.security import get_current_user_id, hash_password, validate_password_strength
 from app.llm.adapter import LLMAdapter
 from app.models.path import LearningPath
 from app.models.progress import NodeProgress
@@ -104,8 +104,7 @@ async def create_user(
     if result.scalar_one_or_none():
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="该邮箱已被注册")
 
-    if len(req.password) < 6:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="密码长度不少于6位")
+    validate_password_strength(req.password)
     if req.role not in ("admin", "user"):
         raise HTTPException(status_code=422, detail="角色必须是 admin 或 user")
 
@@ -125,8 +124,8 @@ async def create_user(
 
 @router.get("/users")
 async def list_users(
-    page: int = 1,
-    size: int = 50,
+    page: int = Query(1, ge=1),
+    size: int = Query(50, ge=1, le=100),
     admin: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ):
@@ -190,8 +189,10 @@ async def update_user(
         user.is_active = req.is_active
     if req.organization is not None:
         user.organization = req.organization
-    if req.password:
+    if req.password is not None:
+        validate_password_strength(req.password)
         user.password_hash = hash_password(req.password)
+        user.must_change_password = True
 
     await db.flush()
     return {"data": user.to_dict()}
@@ -369,8 +370,8 @@ class UpdateNodeRequest(BaseModel):
 
 @router.get("/learning-paths")
 async def admin_list_paths(
-    page: int = 1,
-    size: int = 50,
+    page: int = Query(1, ge=1),
+    size: int = Query(50, ge=1, le=100),
     admin: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ):

@@ -38,6 +38,41 @@ class TestUpdateUser:
         })
         assert old_login.status_code == 401
 
+    async def test_change_password_rejects_short_password(self, client: AsyncClient, registered_user: dict):
+        """用户修改密码必须复用注册时的最低长度策略。"""
+        resp = await client.patch("/api/v1/users/me", headers=registered_user["headers"], json={
+            "password": "123",
+        })
+
+        assert resp.status_code == 422
+
     async def test_update_unauthorized(self, client: AsyncClient):
         resp = await client.patch("/api/v1/users/me", json={"name": "hacker"})
         assert resp.status_code == 403
+
+
+class TestAdminUserUpdates:
+    """管理员用户维护。"""
+
+    async def test_admin_reset_password_rejects_short_password(self, client: AsyncClient, registered_user: dict):
+        """管理员重置密码也必须执行同一密码策略。"""
+        create_resp = await client.post(
+            "/api/v1/admin/users",
+            headers=registered_user["headers"],
+            json={
+                "name": "被重置用户",
+                "email": "reset@example.com",
+                "password": "valid123",
+                "role": "user",
+            },
+        )
+        assert create_resp.status_code == 201
+        user_id = create_resp.json()["data"]["id"]
+
+        resp = await client.patch(
+            f"/api/v1/admin/users/{user_id}",
+            headers=registered_user["headers"],
+            json={"password": "123"},
+        )
+
+        assert resp.status_code == 422

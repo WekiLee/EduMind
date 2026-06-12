@@ -4,7 +4,7 @@ import asyncio
 from datetime import UTC, datetime, timedelta
 from urllib.parse import quote
 
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -102,7 +102,7 @@ async def get_mastery_trend(
     path_id: str,
     user_id: str = Depends(get_current_user_id),
     db: AsyncSession = Depends(get_db),
-    limit: int = 20,
+    limit: int = Query(20, ge=1, le=200),
 ):
     """获取掌握度趋势数据（快照列表）"""
     await require_owned_path(path_id, user_id, db)

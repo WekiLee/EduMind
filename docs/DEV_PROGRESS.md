@@ -146,7 +146,7 @@ backend/app/services/
 /nodes/{id} (GET + graph + start + complete)
 /quiz/{id} (GET + submit)
 /learning-paths/{id}/progress|report|report/export|report/trend
-/ws/chat?token=
+/ws/chat（连接后发送 {"type":"auth","token":"JWT_TOKEN"}）
 /admin/users|config|stats|learning-paths|nodes|mcp/tools|mcp/call
 /search?q=&path_id=&top_k=
 /api/health

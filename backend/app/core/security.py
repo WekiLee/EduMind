@@ -14,6 +14,7 @@ from app.models.user import User
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 security = HTTPBearer()
+MIN_PASSWORD_LENGTH = 6
 
 
 # ── 密码 ──
@@ -22,6 +23,15 @@ security = HTTPBearer()
 def hash_password(password: str) -> str:
     """对明文密码进行 bcrypt 哈希"""
     return pwd_context.hash(password)
+
+
+def validate_password_strength(password: str) -> None:
+    """校验用户密码最低强度。"""
+    if len(password) < MIN_PASSWORD_LENGTH:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"密码长度不少于{MIN_PASSWORD_LENGTH}位",
+        )
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:

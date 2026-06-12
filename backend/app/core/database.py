@@ -165,7 +165,7 @@ async def _ensure_node_embeddings_schema(conn: AsyncConnection) -> None:
 
 
 async def ensure_schema_compatibility() -> None:
-    """启动期兼容旧数据库结构，替代缺失的迁移脚本。"""
+    """开发/演示环境启动期兼容旧数据库结构；生产环境应使用 Alembic。"""
     if engine.dialect.name != "postgresql":
         return
 

@@ -47,11 +47,17 @@ export async function connectChatWS(
   });
 
   const token = localStorage.getItem('token');
-  ws = new WebSocket(`${WS_BASE}/ws/chat?token=${token}`);
+  ws = new WebSocket(`${WS_BASE}/ws/chat`);
 
   ws.onopen = () => {
     console.log('🔗 WebSocket 已连接');
-    wsReadyResolve?.();
+    if (!token) {
+      onError('未登录或令牌缺失');
+      wsReadyResolve?.();
+      ws?.close();
+      return;
+    }
+    ws?.send(JSON.stringify({ type: 'auth', token }));
   };
 
   ws.onmessage = (event) => {
@@ -59,6 +65,8 @@ export async function connectChatWS(
     try { data = JSON.parse(event.data); } catch { return; }
     switch (data.type) {
       case 'connected':
+        wsReadyResolve?.();
+        break;
       case 'session_ready':
         break;
       case 'teaching_chunk':
@@ -69,6 +77,7 @@ export async function connectChatWS(
         break;
       case 'error':
         onError(data.message);
+        wsReadyResolve?.();
         break;
       case 'audio_reply':
         playAudioReply(data.audio_data);
@@ -79,7 +88,10 @@ export async function connectChatWS(
     }
   };
 
-  ws.onclose = () => console.log('🔌 WebSocket 已断开');
+  ws.onclose = () => {
+    console.log('🔌 WebSocket 已断开');
+    wsReadyResolve?.();
+  };
   ws.onerror = () => {
     onError('连接错误');
     wsReadyResolve?.();

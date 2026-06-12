@@ -516,7 +516,7 @@ jobs:
       neo4j:
         image: neo4j:5
         env:
-          NEO4J_AUTH: neo4j/edumind_dev
+          NEO4J_AUTH: neo4j/${NEO4J_PASSWORD:-edumind_dev}
         ports:
           - 7687:7687
 

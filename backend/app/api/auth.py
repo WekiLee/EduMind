@@ -10,6 +10,7 @@ from app.core.security import (
     create_access_token,
     get_current_user_id,
     hash_password,
+    validate_password_strength,
     verify_password,
 )
 from app.models.system_config import SystemConfig
@@ -39,8 +40,7 @@ async def register(req: RegisterRequest, db: AsyncSession = Depends(get_db)):
     if result.scalar_one_or_none():
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="该邮箱已被注册")
 
-    if len(req.password) < 6:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="密码长度不少于6位")
+    validate_password_strength(req.password)
 
     # 检查系统是否允许自助注册
     config_result = await db.execute(select(SystemConfig).limit(1))

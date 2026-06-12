@@ -511,16 +511,24 @@
 ### 连接
 
 ```
-ws://host/api/v1/ws/chat?token=JWT_TOKEN
+ws://host/api/v1/ws/chat
 ```
 
 连接成功 → 服务端返回：
 
 ```json
-{ "type": "connected", "session_id": "uuid" }
+{ "type": "connected" }
 ```
 
 ### 客户端 → 服务端
+
+```json
+// 连接建立后的第一条消息：认证
+{
+  "type": "auth",
+  "token": "JWT_TOKEN"
+}
+```
 
 ```json
 // 发送消息
@@ -531,9 +539,11 @@ ws://host/api/v1/ws/chat?token=JWT_TOKEN
   "session_id": "已有会话可选",
   "content": "为什么变量不能以数字开头？"
 }
+```
 
 > `session_id` 仅允许恢复同一用户、同一路径、同一节点的会话；跨路径或跨节点复用会被拒绝。
 
+```json
 // 请求延伸
 {
   "type": "extend",
@@ -541,7 +551,9 @@ ws://host/api/v1/ws/chat?token=JWT_TOKEN
   "path_id": "learning-path-uuid",
   "direction": "related"   // prerequisite | related | next
 }
+```
 
+```json
 // 请求评估
 {
   "type": "request_quiz",
