@@ -12,6 +12,7 @@ def test_prod_compose_enables_production_secret_guards():
     content = compose.read_text(encoding="utf-8")
 
     assert "ENVIRONMENT: production" in content
+    assert "AUTO_MIGRATE_ON_STARTUP: ${AUTO_MIGRATE_ON_STARTUP:-false}" in content
     assert "DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://edumind:${POSTGRES_PASSWORD:" in content
     assert "NEO4J_PASSWORD: ${NEO4J_PASSWORD:?production NEO4J_PASSWORD is required}" in content
     assert "JWT_SECRET: ${JWT_SECRET:?production JWT_SECRET is required}" in content
@@ -25,6 +26,15 @@ def test_compose_rejects_default_postgres_password():
     assert "POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}" in content
     assert "POSTGRES_PASSWORD:-edumind_dev" not in content
     assert "postgresql+asyncpg://edumind:edumind_dev@postgres" not in content
+
+
+def test_compose_uses_shared_neo4j_password_variable():
+    """Neo4j 服务与开发后端必须使用同一个密码变量。"""
+    content = (ROOT / "docker-compose.yml").read_text(encoding="utf-8")
+
+    assert "NEO4J_AUTH: neo4j/${NEO4J_PASSWORD:-edumind_dev}" in content
+    assert "NEO4J_PASSWORD: ${NEO4J_PASSWORD:-edumind_dev}" in content
+    assert "NEO4J_PASSWORD: edumind_dev" not in content
 
 
 def test_deploy_script_uses_root_env_and_dev_profile():
@@ -51,6 +61,24 @@ def test_ci_runs_compose_config_validator():
     content = (ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
 
     assert "python scripts/validate_compose_config.py" in content
+
+
+def test_backend_env_example_is_trackable():
+    """文档引用的 backend/.env.example 必须真实存在且可被 Git 跟踪。"""
+    assert (ROOT / "backend" / ".env.example").exists()
+    gitignore = (ROOT / ".gitignore").read_text(encoding="utf-8")
+
+    assert "backend/.env.*" in gitignore
+    assert "!backend/.env.example" in gitignore
+
+
+def test_mvp_environment_doc_uses_current_neo4j_contract():
+    """MVP 环境文档不能继续展示旧的 Neo4j 硬编码密码。"""
+    content = (ROOT / "docs" / "mvp" / "ENVIRONMENT.md").read_text(encoding="utf-8")
+
+    assert "NEO4J_AUTH: neo4j/${NEO4J_PASSWORD:-edumind_dev}" in content
+    assert "NEO4J_AUTH: neo4j/edumind_dev" not in content
+    assert "AUTO_MIGRATE_ON_STARTUP: ${AUTO_MIGRATE_ON_STARTUP:-true}" in content
 
 
 def test_windows_setup_script_uses_existing_compose_contract():

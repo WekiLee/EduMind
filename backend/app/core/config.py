@@ -23,6 +23,7 @@ class Settings(BaseSettings):
     neo4j_user: str = "neo4j"
     neo4j_password: str = DEFAULT_NEO4J_PASSWORD
     redis_url: str = "redis://localhost:6379/0"
+    auto_migrate_on_startup: bool | None = None
 
     # ── JWT ──
     jwt_secret: str = DEFAULT_JWT_SECRET
@@ -75,10 +76,22 @@ class Settings(BaseSettings):
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
 
+    @property
+    def is_production(self) -> bool:
+        """判断当前配置是否为生产环境。"""
+        return self.environment.lower() in {"prod", "production"}
+
+    @property
+    def should_auto_migrate_on_startup(self) -> bool:
+        """控制启动期 DDL：开发默认开启，生产默认关闭。"""
+        if self.auto_migrate_on_startup is not None:
+            return self.auto_migrate_on_startup
+        return not self.is_production
+
     @model_validator(mode="after")
     def validate_production_secrets(self) -> "Settings":
         """生产环境禁止继续使用开发默认密钥。"""
-        if self.environment.lower() not in {"prod", "production"}:
+        if not self.is_production:
             return self
 
         insecure_fields = []

@@ -55,7 +55,7 @@ services:
   neo4j:
     image: neo4j:5
     environment:
-      NEO4J_AUTH: neo4j/edumind_dev
+      NEO4J_AUTH: neo4j/${NEO4J_PASSWORD:-edumind_dev}
       NEO4J_PLUGINS: '["apoc"]'
     ports:
       - "7474:7474"    # HTTP (Browser UI)
@@ -100,10 +100,11 @@ services:
       - "8000:8000"
     environment:
       ENVIRONMENT: development
+      AUTO_MIGRATE_ON_STARTUP: ${AUTO_MIGRATE_ON_STARTUP:-true}
       DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://edumind:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@postgres:5432/edumind}
       NEO4J_URI: bolt://neo4j:7687
       NEO4J_USER: neo4j
-      NEO4J_PASSWORD: edumind_dev
+      NEO4J_PASSWORD: ${NEO4J_PASSWORD:-edumind_dev}
       REDIS_URL: redis://redis:6379/0
       OLLAMA_BASE_URL: http://ollama:11434
       JWT_SECRET: edumind-dev-secret-change-in-production
@@ -266,6 +267,10 @@ OLLAMA_BASE_URL=http://localhost:11434
 JWT_SECRET=change-this-in-production
 JWT_EXPIRATION_HOURS=72
 
+# 数据库结构变更
+# 开发环境默认自动建表；生产环境默认关闭，应通过迁移流程处理结构变更
+# AUTO_MIGRATE_ON_STARTUP=true
+
 # 内置管理员（可选）
 # 未配置时跳过内置管理员创建，首位自助注册用户自动成为管理员
 DEFAULT_ADMIN_PASSWORD=请使用强随机密码
@@ -284,6 +289,7 @@ export ENVIRONMENT=production
 export POSTGRES_PASSWORD="<强随机密码>"
 export NEO4J_PASSWORD="<强随机密码>"
 export JWT_SECRET="$(openssl rand -hex 32)"
+# 生产默认不执行启动期 DDL；如需兼容旧部署，可显式设置 AUTO_MIGRATE_ON_STARTUP=true。
 # 如使用外部 PostgreSQL，可额外覆盖 DATABASE_URL。
 python scripts/validate_compose_config.py
 docker compose --profile prod up -d

@@ -163,6 +163,7 @@ docker compose down
 export POSTGRES_PASSWORD="<强随机密码>"
 export NEO4J_PASSWORD="<强随机密码>"
 export JWT_SECRET=$(openssl rand -hex 32)
+# 生产默认关闭启动期自动建表/兼容 DDL；请先完成受控迁移。
 
 # 如使用外部 PostgreSQL，可额外覆盖 DATABASE_URL
 python scripts/validate_compose_config.py

@@ -24,21 +24,22 @@ from app.ws import chat
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """应用生命周期管理"""
-    # 初始化 pgvector 扩展（必须在建表前）
-    try:
-        await init_pgvector()
-    except Exception as e:
-        print(f"  ⚠️  pgvector 扩展初始化跳过: {e}")
+    if settings.should_auto_migrate_on_startup:
+        # 开发/演示环境允许启动期自动建表；生产环境默认关闭，避免隐式 DDL。
+        try:
+            await init_pgvector()
+        except Exception as e:
+            print(f"  ⚠️  pgvector 扩展初始化跳过: {e}")
 
-    # 启动时创建数据库表（开发环境自动迁移）
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
 
-    # 兼容历史数据库结构（项目当前未引入 Alembic）
-    try:
-        await ensure_schema_compatibility()
-    except Exception as e:
-        print(f"  ⚠️  数据库兼容修复跳过: {e}")
+        try:
+            await ensure_schema_compatibility()
+        except Exception as e:
+            print(f"  ⚠️  数据库兼容修复跳过: {e}")
+    else:
+        print("  ℹ️  启动期数据库自动建表/兼容修复已关闭，请确认迁移已完成")
 
     # 启动时确保内置管理员账号存在
     try:

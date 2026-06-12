@@ -35,3 +35,37 @@ def test_production_rejects_documented_weak_jwt_secret():
             jwt_secret="edumind-dev-secret-change-in-production",
             _env_file=None,
         )
+
+
+def test_development_auto_migrate_enabled_by_default():
+    """开发环境默认允许启动期自动建表，保留本地快速启动体验。"""
+    settings = Settings(environment="development", _env_file=None)
+
+    assert settings.should_auto_migrate_on_startup is True
+
+
+def test_production_auto_migrate_disabled_by_default():
+    """生产环境默认关闭启动期 DDL，避免发布时隐式改表。"""
+    settings = Settings(
+        environment="production",
+        database_url="postgresql+asyncpg://edumind:strong_password@db:5432/edumind",
+        neo4j_password="strong-neo4j-password",
+        jwt_secret="a" * 32,
+        _env_file=None,
+    )
+
+    assert settings.should_auto_migrate_on_startup is False
+
+
+def test_production_auto_migrate_can_be_explicitly_enabled():
+    """需要兼容旧部署时，生产环境可显式开启启动期 DDL。"""
+    settings = Settings(
+        environment="production",
+        database_url="postgresql+asyncpg://edumind:strong_password@db:5432/edumind",
+        neo4j_password="strong-neo4j-password",
+        jwt_secret="a" * 32,
+        auto_migrate_on_startup=True,
+        _env_file=None,
+    )
+
+    assert settings.should_auto_migrate_on_startup is True

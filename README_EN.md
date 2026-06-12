@@ -118,6 +118,7 @@ docker compose logs -f backend
 export POSTGRES_PASSWORD="<strong-random-password>"
 export NEO4J_PASSWORD="<strong-random-password>"
 export JWT_SECRET=$(openssl rand -hex 32)
+# Startup-time schema DDL is disabled by default in production; run controlled migrations first.
 # Set DATABASE_URL only when using an external PostgreSQL instance.
 python scripts/validate_compose_config.py
 docker compose --profile prod build

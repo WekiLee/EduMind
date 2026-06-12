@@ -33,8 +33,24 @@ def main() -> None:
         "后端连接串不能继续硬编码开发数据库密码",
     )
     require(
+        "NEO4J_AUTH: neo4j/${NEO4J_PASSWORD:-edumind_dev}" in content,
+        "Neo4j 服务必须通过 NEO4J_PASSWORD 变量配置开发密码",
+    )
+    require(
+        "NEO4J_PASSWORD: ${NEO4J_PASSWORD:-edumind_dev}" in content,
+        "开发后端必须与 Neo4j 服务使用同一个 NEO4J_PASSWORD 变量",
+    )
+    require(
+        "NEO4J_PASSWORD: edumind_dev" not in content,
+        "开发后端不能继续硬编码 Neo4j 默认密码",
+    )
+    require(
         "ENVIRONMENT: production" in content,
         "生产后端必须显式设置 ENVIRONMENT=production",
+    )
+    require(
+        "AUTO_MIGRATE_ON_STARTUP: ${AUTO_MIGRATE_ON_STARTUP:-false}" in content,
+        "生产后端默认必须关闭启动期自动 DDL",
     )
     require(
         "JWT_SECRET: ${JWT_SECRET:?production JWT_SECRET is required}" in content,
